@@ -562,12 +562,22 @@
             }
         }
 
-        // Search functionality with debouncing
+        // Search functionality with debouncing and race condition protection
         let searchTimeout;
+        let searchAbortController = null;
+        let searchRequestId = 0;
+        
         searchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimeout);
-            const query = e.target.value.trim();
             
+            // Cancel any in-flight search requests
+            if (searchAbortController) {
+                searchAbortController.abort();
+                searchAbortController = null;
+            }
+            
+            const query = e.target.value.trim();
+
             // If search is empty, show library
             if (!query) {
                 resultsSection.classList.add('hidden');
@@ -578,15 +588,15 @@
                 }
                 return;
             }
-            
+
             // Hide library when user starts typing
             librarySection.classList.add('hidden');
             emptyState.classList.add('hidden');
-            
+
             // Debounce search
             searchTimeout = setTimeout(() => {
                 performSearch(query);
-            }, 500);
+            }, 300);
         });
 
         // Toggle category tags expand/collapse
@@ -617,7 +627,18 @@
 
         async function performSearch(query) {
             try {
-                console.log('🔍 Searching for:', query);
+                // Create unique ID for this search request
+                const currentRequestId = ++searchRequestId;
+                
+                // Cancel previous search if exists
+                if (searchAbortController) {
+                    searchAbortController.abort();
+                }
+                
+                // Create new abort controller for this search
+                searchAbortController = new AbortController();
+                
+                console.log(`🔍 Search #${currentRequestId}:`, query);
                 console.log('🎭 Emotion filters:', Array.from(selectedEmotions));
                 console.log('🎬 Genre filters:', Array.from(selectedGenres));
 
@@ -634,15 +655,31 @@
                         query,
                         emotions: Array.from(selectedEmotions),
                         genres: Array.from(selectedGenres)
-                    })
+                    }),
+                    signal: searchAbortController.signal
                 });
 
-                console.log('📡 Response status:', response.status);
+                console.log(`📡 Response #${currentRequestId} status:`, response.status);
                 const data = await response.json();
+                
+                // Ignore response if it's from an outdated search
+                if (currentRequestId !== searchRequestId) {
+                    console.log(`⏭️ Ignoring stale response #${currentRequestId} (current: ${searchRequestId})`);
+                    return;
+                }
+                
                 console.log('📊 Results received:', data.results.length, 'items');
-                console.log('📋 First result:', data.results[0]);
                 displayResults(data.results, query);
+                
+                // Clear the abort controller after successful completion
+                searchAbortController = null;
             } catch (error) {
+                // Ignore aborted requests
+                if (error.name === 'AbortError') {
+                    console.log('🚫 Search request aborted');
+                    return;
+                }
+                
                 console.error('❌ Search error:', error);
                 noResultsState.classList.remove('hidden');
                 resultsSection.classList.add('hidden');
