@@ -477,8 +477,14 @@ def process_video(video_path, filename):
     else:
         thumbnail_url = None
 
+    # Generate title from filename
+    clean_title = os.path.splitext(filename)[0].replace('-', ' ').replace('_', ' ')
+    if clean_title.startswith("Copy of "):
+        clean_title = clean_title[8:]
+    
     video_data = {
         'filename': filename,
+        'title': clean_title,
         'duration': video_duration,
         'status': 'processing',
         'thumbnail': thumbnail_filename,
@@ -964,7 +970,7 @@ def serve_thumbnail(filename):
 @app.route('/videos', methods=['GET'])
 def list_videos():
     try:
-        v_resp = supabase.table('videos').select('id, filename, upload_date, duration, status, thumbnail, custom_tags, supabase_video_url').order('upload_date', desc=True).execute()
+        v_resp = supabase.table('videos').select('id, filename, title, upload_date, duration, status, thumbnail, custom_tags, supabase_video_url').order('upload_date', desc=True).execute()
         c_resp = supabase.table('clips').select('video_id').execute()
         clip_counts = {}
         for c in c_resp.data:
@@ -976,8 +982,9 @@ def list_videos():
             videos.append({
                 'id': v['id'],
                 'filename': v['filename'],
+                'title': v.get('title') or v['filename'],
                 'upload_date': v.get('upload_date'),
-                'duration': v.get('duration'),
+                'duration': v.get('duration') or 0,
                 'status': v.get('status', 'pending'),
                 'thumbnail': v.get('thumbnail'),
                 'custom_tags': v.get('custom_tags') or '',
