@@ -518,9 +518,7 @@ def process_video(video_path, filename):
                     'start_time': start_time,
                     'end_time': end_time,
                     'transcript_text': text,
-                    'embedding': embedding_list,
-                    'filename': filename,
-                    'duration': min(CHUNK_DURATION, end_time - start_time)
+                    'embedding': embedding_list
                 }
                 try:
                     supabase.table('clips').insert(clip_data).execute()
@@ -595,7 +593,6 @@ def process_video(video_path, filename):
 
         frame_record = {
             'video_id': video_id,
-            'filename': filename,
             'timestamp': frame_data['timestamp'],
             'visual_description': description,
             'emotion': emotion,
@@ -1062,7 +1059,6 @@ def reprocess_video(video_id):
 
             frame_record = {
                 'video_id': video_id,
-                'filename': filename,
                 'timestamp': frame_data['timestamp'],
                 'visual_description': desc,
                 'emotion': str(analysis.get('emotion', '')),
