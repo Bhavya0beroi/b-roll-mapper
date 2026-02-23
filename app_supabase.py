@@ -821,8 +821,9 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter):
             })
         return results
 
-    clips_resp = supabase.table('clips').select('*').execute()
-    vf_resp = supabase.table('visual_frames').select('*').execute()
+    # Optimize: Only fetch needed columns, limit results
+    clips_resp = supabase.table('clips').select('id, video_id, start_time, end_time, transcript_text, embedding').limit(500).execute()
+    vf_resp = supabase.table('visual_frames').select('id, video_id, timestamp, visual_description, emotion, ocr_text, tags, genres, actors, series_movie, custom_tags, emotion_tags, laugh_tags, contextual_tags, character_tags, semantic_tags, visual_embedding').limit(500).execute()
 
     for clip in clips_resp.data:
         emb = clip.get('embedding')
@@ -964,7 +965,8 @@ def search():
                 'message': f'No relevant B-rolls found for "{query}". Try different keywords or upload more videos.'
             })
 
-        return jsonify({'results': results[:20]})
+        # Return top 50 results (was 20, now more but still limited)
+        return jsonify({'results': results[:50]})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

@@ -278,7 +278,15 @@
                         </svg>
                     </button>
                 </div>
-                <video id="videoPlayer" class="w-full rounded-lg mb-4" controls></video>
+                <div class="relative">
+                    <video id="videoPlayer" class="w-full rounded-lg mb-4" controls preload="metadata"></video>
+                    <div id="videoLoading" class="hidden absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center rounded-lg">
+                        <div class="text-white text-center">
+                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-2"></div>
+                            <p class="text-sm">Loading video...</p>
+                        </div>
+                    </div>
+                </div>
                 <img id="gifPlayer" class="w-full rounded-lg mb-4 hidden" alt="GIF player">
                 <div class="bg-dark-bg rounded p-4">
                     <p class="text-sm text-gray-400 mb-2">Transcript:</p>
@@ -612,13 +620,17 @@
                 console.log('🔍 Searching for:', query);
                 console.log('🎭 Emotion filters:', Array.from(selectedEmotions));
                 console.log('🎬 Genre filters:', Array.from(selectedGenres));
-                
+
+                // Show loading state
+                resultsSection.classList.remove('hidden');
+                resultsGrid.innerHTML = '<div class="col-span-full text-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div><p class="text-gray-600 dark:text-gray-400">Searching...</p></div>';
+
                 const response = await fetch(`${API_BASE}/search`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         query,
                         emotions: Array.from(selectedEmotions),
                         genres: Array.from(selectedGenres)
@@ -1085,6 +1097,7 @@
         function playClip(result) {
             const videoUrl = `${API_BASE}/uploads/${result.filename}`;
             const isGif = result.filename.toLowerCase().endsWith('.gif');
+            const videoLoading = document.getElementById('videoLoading');
             
             // Show GIF player or video player based on file type
             if (isGif) {
@@ -1094,9 +1107,24 @@
             } else {
                 gifPlayer.classList.add('hidden');
                 videoPlayer.classList.remove('hidden');
+                
+                // Show loading indicator
+                videoLoading.classList.remove('hidden');
+                
                 videoPlayer.src = videoUrl;
                 videoPlayer.currentTime = result.start_time;
-                videoPlayer.play();
+                
+                // Hide loading when video can play
+                videoPlayer.oncanplay = () => {
+                    videoLoading.classList.add('hidden');
+                    videoPlayer.play();
+                };
+                
+                // Also hide loading on error
+                videoPlayer.onerror = () => {
+                    videoLoading.classList.add('hidden');
+                    alert('Error loading video. Please try again.');
+                };
             }
             
             document.getElementById('modalTitle').textContent = result.filename;

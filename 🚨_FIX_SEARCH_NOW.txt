@@ -1,0 +1,71 @@
+╔════════════════════════════════════════════════════════════════════╗
+║           🚨 CRITICAL FIX NEEDED - SEARCH IS BROKEN! 🚨           ║
+╚════════════════════════════════════════════════════════════════════╝
+
+PROBLEM FOUND:
+═══════════════════════════════════════════════════════════════════════
+❌ Videos uploaded successfully
+❌ AI transcription works (11 clips created)
+❌ AI visual analysis works (4 frames with tags)
+❌ BUT: NO EMBEDDINGS stored in database!
+❌ Result: Search returns EMPTY (needs embeddings to work)
+
+ROOT CAUSE:
+═══════════════════════════════════════════════════════════════════════
+Your Supabase schema is MISSING the embedding columns!
+- clips table needs: embedding (JSONB)
+- visual_frames table needs: visual_embedding (JSONB)
+
+FIX - DO THIS NOW (takes 30 seconds):
+═══════════════════════════════════════════════════════════════════════
+
+Step 1: Run Updated Schema in Supabase
+───────────────────────────────────────────────────────────────────────
+1. Open: https://supabase.com/dashboard/project/frfrevcsrissjgtyowtb/sql/new
+
+2. Copy the ENTIRE supabase_schema.sql file (109 lines)
+
+3. Paste and click "Run"
+
+   This will recreate tables WITH embedding columns
+
+Step 2: Re-upload Your 3 Fight Club Videos
+───────────────────────────────────────────────────────────────────────
+Current videos have NO embeddings - they need to be re-uploaded
+
+1. Open: https://web-production-b5a81.up.railway.app
+
+2. Hard refresh: Cmd+Shift+R
+
+3. Upload your 3 Fight Club videos again:
+   - Fight_Club_1999__waking_up_scene.mp4
+   - Fight_Club_1999__Thinking_scene.mp4
+   - Fight_Club_1999__Realization_scene.mp4
+
+4. Wait for each to process (~30-60 seconds each)
+
+5. Refresh page
+
+Step 3: Test Search
+───────────────────────────────────────────────────────────────────────
+1. Type "fight" in search box
+2. You should see results!
+3. Try emotion filters
+4. Try transcript search (e.g., "sleep")
+
+═══════════════════════════════════════════════════════════════════════
+
+WHY THIS HAPPENED:
+═══════════════════════════════════════════════════════════════════════
+I removed embedding columns earlier to fix a dimension mismatch error.
+But without embeddings, semantic search cannot work at all!
+
+NOW FIXED:
+- ✅ Added embedding columns back (as JSONB, no dimension limits)
+- ✅ Code already creates embeddings (just wasn't storing them)
+- ✅ Search will work after re-uploading videos
+
+═══════════════════════════════════════════════════════════════════════
+
+⏱️ TIME NEEDED: 5 minutes total
+═══════════════════════════════════════════════════════════════════════

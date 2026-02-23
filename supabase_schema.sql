@@ -31,6 +31,7 @@ CREATE TABLE clips (
     start_time REAL NOT NULL,
     end_time REAL NOT NULL,
     transcript_text TEXT,
+    embedding JSONB,  -- Store embeddings as JSONB (not vector type)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -60,8 +61,18 @@ CREATE TABLE visual_frames (
     contextual_tags TEXT,
     character_tags TEXT,
     semantic_tags TEXT,
+    visual_embedding JSONB,  -- Store embeddings as JSONB (not vector type)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Indexes for faster search performance
+CREATE INDEX idx_clips_video_id ON clips(video_id);
+CREATE INDEX idx_clips_transcript_text ON clips USING gin(to_tsvector('english', transcript_text));
+CREATE INDEX idx_visual_frames_video_id ON visual_frames(video_id);
+CREATE INDEX idx_visual_frames_emotion ON visual_frames(emotion);
+CREATE INDEX idx_visual_frames_tags ON visual_frames USING gin(to_tsvector('english', tags));
+CREATE INDEX idx_videos_filename ON videos(filename);
+CREATE INDEX idx_videos_status ON videos(status);
 
 -- Create indexes for better search performance
 CREATE INDEX IF NOT EXISTS idx_videos_filename ON videos(filename);
