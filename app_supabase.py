@@ -606,8 +606,49 @@ def index_semantic():
     return send_from_directory('.', 'index_semantic.html')
 
 
+@app.route('/process_video/<int:video_id>', methods=['POST'])
+def process_video_endpoint(video_id):
+    """
+    Process a video that's already uploaded to Supabase Storage
+    Downloads from Supabase, runs AI analysis, uploads results
+    """
+    try:
+        # Get video from database
+        result = supabase.table('videos').select('*').eq('id', video_id).execute()
+        if not result.data:
+            return jsonify({'error': 'Video not found'}), 404
+        
+        video = result.data[0]
+        filename = video['filename']
+        video_url = video['supabase_video_url']
+        
+        # Download from Supabase Storage
+        storage_path = f"videos/{filename}"
+        video_data = supabase.storage.from_(BUCKET_NAME).download(storage_path)
+        
+        # Save to temp file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as tmp:
+            tmp.write(video_data)
+            tmp_path = tmp.name
+        
+        try:
+            # Run full AI processing
+            process_video(tmp_path, filename)
+            return jsonify({'success': True, 'message': 'Video processed successfully'})
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+                
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    """
+    Quick upload endpoint - uploads video to Supabase Storage immediately,
+    returns success, then processes in background
+    """
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
     file = request.files['file']
@@ -617,6 +658,7 @@ def upload_file():
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
 
+        # Check if video already exists
         existing = supabase.table('videos').select('id').eq('filename', filename).execute()
         if existing.data:
             video_id = existing.data[0]['id']
@@ -624,15 +666,51 @@ def upload_file():
             supabase.table('visual_frames').delete().eq('video_id', video_id).execute()
             supabase.table('videos').delete().eq('id', video_id).execute()
 
+        # Save to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as tmp:
             file.save(tmp.name)
             tmp_path = tmp.name
 
         try:
-            process_video(tmp_path, filename)
+            # Quick upload to Supabase Storage only
+            video_remote_path = f"videos/{filename}"
+            with open(tmp_path, 'rb') as f:
+                video_data = f.read()
+            
+            supabase.storage.from_(BUCKET_NAME).upload(
+                video_remote_path,
+                video_data,
+                file_options={"content-type": "video/mp4", "upsert": "true"}
+            )
+            
+            video_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{video_remote_path}"
+            
+            # Create minimal video record
+            clean_title = os.path.splitext(filename)[0].replace('-', ' ').replace('_', ' ')
+            video_data = {
+                'filename': filename,
+                'duration': 0,  # Will be updated during processing
+                'status': 'pending',
+                'thumbnail': None,
+                'custom_tags': '',
+                'supabase_video_url': video_url,
+                'title': clean_title
+            }
+            result = supabase.table('videos').insert(video_data).execute()
+            video_id = result.data[0]['id']
+            
+            # Clean up temp file
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
-            return jsonify({'success': True, 'filename': filename})
+            
+            # Return success immediately
+            return jsonify({
+                'success': True, 
+                'filename': filename,
+                'video_id': video_id,
+                'message': 'Video uploaded! Processing will happen in background. Refresh page to see it.'
+            })
+            
         except Exception as e:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
