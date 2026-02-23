@@ -84,7 +84,7 @@ def migrate_clips():
     conn = sqlite3.connect(SQLITE_DB)
     cursor = conn.cursor()
     
-    cursor.execute('SELECT id, video_id, start_time, end_time, transcript_text, embedding FROM clips')
+    cursor.execute('SELECT id, video_id, filename, start_time, end_time, duration, transcript_text, embedding FROM clips')
     clips = cursor.fetchall()
     
     print(f"Found {len(clips)} clips to migrate...")
@@ -99,7 +99,7 @@ def migrate_clips():
         
         for clip in batch:
             try:
-                clip_id, video_id, start_time, end_time, transcript_text, embedding_blob = clip
+                clip_id, video_id, filename, start_time, end_time, duration, transcript_text, embedding_blob = clip
                 
                 # Convert embedding blob to list
                 if embedding_blob:
@@ -111,8 +111,10 @@ def migrate_clips():
                 data = {
                     'id': clip_id,
                     'video_id': video_id,
+                    'filename': filename,
                     'start_time': start_time,
                     'end_time': end_time,
+                    'duration': duration,
                     'transcript_text': transcript_text,
                     'embedding': embedding_list
                 }
@@ -147,7 +149,7 @@ def migrate_visual_frames():
     conn = sqlite3.connect(SQLITE_DB)
     cursor = conn.cursor()
     
-    cursor.execute('''SELECT id, video_id, timestamp, description, embedding, emotion, ocr_text, 
+    cursor.execute('''SELECT id, video_id, filename, timestamp, frame_path, visual_description, visual_embedding, emotion, ocr_text, 
                       tags, genres, deep_emotions, scene_context, people_description, environment,
                       dialogue_context, series_movie, target_audience, scene_type, actors, media_type,
                       emotion_tags, laugh_tags, contextual_tags, character_tags, semantic_tags 
@@ -166,24 +168,26 @@ def migrate_visual_frames():
         
         for frame in batch:
             try:
-                (frame_id, video_id, timestamp, description, embedding_blob, emotion, ocr_text,
+                (frame_id, video_id, filename, timestamp, frame_path, visual_description, visual_embedding_blob, emotion, ocr_text,
                  tags, genres, deep_emotions, scene_context, people_description, environment,
                  dialogue_context, series_movie, target_audience, scene_type, actors, media_type,
                  emotion_tags, laugh_tags, contextual_tags, character_tags, semantic_tags) = frame
                 
                 # Convert embedding blob to list
-                if embedding_blob:
+                if visual_embedding_blob:
                     import struct
-                    embedding_list = list(struct.unpack(f'{len(embedding_blob)//4}f', embedding_blob))
+                    embedding_list = list(struct.unpack(f'{len(visual_embedding_blob)//4}f', visual_embedding_blob))
                 else:
                     embedding_list = None
                 
                 data = {
                     'id': frame_id,
                     'video_id': video_id,
+                    'filename': filename,
                     'timestamp': timestamp,
-                    'description': description,
-                    'embedding': embedding_list,
+                    'frame_path': frame_path,
+                    'visual_description': visual_description,
+                    'visual_embedding': embedding_list,
                     'emotion': emotion,
                     'ocr_text': ocr_text,
                     'tags': tags,
@@ -279,8 +283,7 @@ if __name__ == "__main__":
     
     print(f"\n✅ Found SQLite database: {SQLITE_DB}")
     print(f"✅ Supabase URL: {SUPABASE_URL}")
-    
-    input("\n⚠️  Press ENTER to start migration (or Ctrl+C to cancel)...")
+    print(f"\n🚀 Starting migration automatically...")
     
     try:
         # Run migrations

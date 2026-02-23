@@ -1,0 +1,248 @@
+╔════════════════════════════════════════════════════════════╗
+║              🚀 SUPABASE DEPLOYMENT                        ║
+║                  QUICK REFERENCE                           ║
+╚════════════════════════════════════════════════════════════╝
+
+📁 FILES CREATED (10 files, 51.5KB total)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⭐ MAIN FILES:
+  1. supabase_schema.sql (5.5KB)
+     → Database schema for Supabase PostgreSQL
+
+  2. migrate_to_supabase.py (11KB)
+     → Migrates SQLite data to Supabase
+
+  3. upload_videos_to_supabase.py (7.1KB)
+     → Uploads videos to Supabase Storage
+
+  4. deploy_supabase.sh (4.4KB)
+     → Automated deployment script
+
+📚 DOCUMENTATION:
+  5. DEPLOYMENT_GUIDE.md (6.2KB)
+     → Complete step-by-step guide
+
+  6. SUPABASE_DEPLOYMENT_SUMMARY.md (5.8KB)
+     → Overview of all changes
+
+  7. DEPLOYMENT_CHECKLIST.txt (11KB)
+     → Visual checklist with expected outputs
+
+⚙️ CONFIGURATION:
+  8. .env.supabase
+     → Environment variables
+
+  9. requirements.txt (Updated)
+     → Python dependencies
+
+  10. Procfile (78B)
+      → Railway deployment config
+
+  11. railway.json (346B)
+      → Railway settings
+
+  12. .gitignore
+      → Git exclusions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 QUICKSTART (3 OPTIONS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OPTION 1: Automated (Recommended) ⭐
+  ./deploy_supabase.sh
+
+OPTION 2: Manual Step-by-Step
+  1. Setup database: Run SQL in Supabase dashboard
+  2. Migrate data: python3 migrate_to_supabase.py
+  3. Create bucket: In Supabase Storage UI
+  4. Upload videos: python3 upload_videos_to_supabase.py
+  5. Deploy: Push to Railway
+
+OPTION 3: Read First, Then Execute
+  1. Read: DEPLOYMENT_GUIDE.md
+  2. Follow: DEPLOYMENT_CHECKLIST.txt
+  3. Execute: Each step manually
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 YOUR SETUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Supabase Project:
+  URL: https://frfrevcsrissjgtyowtb.supabase.co
+  Anon Key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  Service Key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Current Data:
+  Videos: 100+ (2-3GB)
+  Database: broll_semantic.db (SQLite)
+  Location: Local uploads/ folder
+
+Target Setup:
+  Database: Supabase PostgreSQL
+  Storage: Supabase Storage (5GB free)
+  Deployment: Railway ($5/month)
+  Access: Global (public URL)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏱️ TIME ESTIMATES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step 1: Setup Database............... 5 min
+Step 2: Migrate Data................. 10 min
+Step 3: Create Storage Bucket........ 3 min
+Step 4: Upload Videos................ 15-30 min
+Step 5: Test Locally................. 5 min
+Step 6: Deploy to Railway............ 10 min
+Step 7: Test Deployed App............ 5 min
+
+TOTAL: 53-68 minutes (~1 hour)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💰 COST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Supabase Free Tier:
+  ✅ 500MB database
+  ✅ 5GB storage (enough for 500 videos @ 10MB each)
+  ✅ 2GB bandwidth/month
+  ✅ Unlimited API requests
+
+Railway:
+  💵 $5/month (flat rate)
+  ✅ 100GB bandwidth
+  ✅ Auto-scaling
+
+TOTAL: $5/month (until Supabase free tier exceeded)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 IMPORTANT LINKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Supabase Dashboard:
+  https://supabase.com/dashboard/project/frfrevcsrissjgtyowtb
+
+Supabase SQL Editor:
+  https://supabase.com/dashboard/project/frfrevcsrissjgtyowtb/sql
+
+Supabase Storage:
+  https://supabase.com/dashboard/project/frfrevcsrissjgtyowtb/storage
+
+Railway Dashboard:
+  https://railway.app/
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ WHAT'S PRESERVED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ All videos and thumbnails
+✅ All AI-generated tags (emotion, laugh, contextual, etc.)
+✅ All embeddings for semantic search
+✅ All transcripts
+✅ All custom tags
+✅ All metadata (series, actors, etc.)
+✅ Search functionality (exact same)
+✅ AI tagging (OpenAI Vision, Whisper)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 WHAT CHANGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BEFORE → AFTER
+
+Database:
+  SQLite file → Supabase PostgreSQL
+
+Storage:
+  Local uploads/ → Supabase Storage
+
+Video URLs:
+  /uploads/video.mp4 → https://frfrevcsrissjgtyowtb.supabase.co/storage/v1/object/public/broll-videos/videos/video.mp4
+
+Access:
+  localhost:5002 → https://your-app.railway.app
+
+Scalability:
+  Single machine → Cloud (unlimited users)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚨 PREREQUISITES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Python 3.9+
+✅ pip3
+✅ broll_semantic.db exists
+✅ uploads/ folder with videos
+✅ Supabase account (free)
+✅ Railway account (will create if needed)
+✅ GitHub account (for Railway deployment)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📞 NEXT STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Read this file ✅ (you're here!)
+2. Choose your deployment method:
+   → Automated: ./deploy_supabase.sh
+   → Manual: Follow DEPLOYMENT_GUIDE.md
+3. Start with STEP 1: Setup Database
+4. Follow the checklist in DEPLOYMENT_CHECKLIST.txt
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🆘 TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Migration failed: connection refused"
+  → Check Supabase URL and service_role key
+
+"Videos not appearing"
+  → Check bucket is public
+  → Verify video URLs in database
+
+"Search not working"
+  → Check pgvector extension enabled
+  → Verify embeddings migrated correctly
+
+"Railway deployment failed"
+  → Check environment variables
+  → Verify requirements.txt is correct
+  → Check Railway logs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📖 DOCUMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Quick Start:
+  → This file (QUICK_REFERENCE.txt)
+
+Complete Guide:
+  → DEPLOYMENT_GUIDE.md
+
+Visual Checklist:
+  → DEPLOYMENT_CHECKLIST.txt
+
+Overview:
+  → SUPABASE_DEPLOYMENT_SUMMARY.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Created: February 5, 2026
+Status: Ready to deploy ✅
+Estimated time: ~1 hour
+Cost: $5/month
+
+🚀 Ready to deploy? Start with:
+   ./deploy_supabase.sh
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

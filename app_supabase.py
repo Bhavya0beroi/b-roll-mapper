@@ -61,9 +61,16 @@ def allowed_file(filename):
 def get_video_duration(video_path):
     """Get video duration using ffprobe."""
     try:
-        ffprobe = '/opt/homebrew/bin/ffprobe'
-        if not os.path.exists(ffprobe):
-            ffprobe = 'ffprobe'
+        # Check multiple possible ffprobe locations
+        ffprobe_paths = ['/opt/homebrew/bin/ffprobe', '/usr/bin/ffprobe', 'ffprobe']
+        ffprobe = None
+        for path in ffprobe_paths:
+            if os.path.exists(path):
+                ffprobe = path
+                break
+        if not ffprobe:
+            ffprobe = 'ffprobe'  # Hope it's in PATH
+        
         cmd = [ffprobe, '-v', 'error', '-show_entries', 'format=duration',
                '-of', 'default=noprint_wrappers=1:nokey=1', video_path]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -76,9 +83,16 @@ def get_video_duration(video_path):
 def generate_thumbnail(video_path, thumbnail_path, timestamp=1.0):
     """Generate video thumbnail using ffmpeg."""
     try:
-        ffmpeg = '/opt/homebrew/bin/ffmpeg'
-        if not os.path.exists(ffmpeg):
-            ffmpeg = 'ffmpeg'
+        # Check multiple possible ffmpeg locations
+        ffmpeg_paths = ['/opt/homebrew/bin/ffmpeg', '/usr/bin/ffmpeg', 'ffmpeg']
+        ffmpeg = None
+        for path in ffmpeg_paths:
+            if os.path.exists(path):
+                ffmpeg = path
+                break
+        if not ffmpeg:
+            ffmpeg = 'ffmpeg'  # Hope it's in PATH
+        
         cmd = [ffmpeg, '-i', video_path, '-ss', str(timestamp), '-vframes', '1', '-q:v', '2', '-y', thumbnail_path]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -94,9 +108,14 @@ def extract_frames_for_analysis(video_path, video_duration, filename):
     try:
         frames = []
         video_base = os.path.splitext(filename)[0]
-        ffmpeg = '/opt/homebrew/bin/ffmpeg'
-        if not os.path.exists(ffmpeg):
-            ffmpeg = 'ffmpeg'
+        
+        # Check multiple possible ffmpeg locations
+        ffmpeg_paths = ['/opt/homebrew/bin/ffmpeg', '/usr/bin/ffmpeg', 'ffmpeg']
+        ffmpeg = None
+        for path in ffmpeg_paths:
+            if os.path.exists(path) or path == 'ffmpeg':
+                ffmpeg = path
+                break
 
         if video_duration <= 20:
             timestamps = [video_duration / 2]
@@ -363,12 +382,21 @@ Return ONLY JSON, no other text."""
 def extract_audio(video_path):
     """Extract audio from video using ffmpeg."""
     try:
-        ffprobe = '/opt/homebrew/bin/ffprobe'
-        ffmpeg = '/opt/homebrew/bin/ffmpeg'
-        if not os.path.exists(ffprobe):
-            ffprobe = 'ffprobe'
-        if not os.path.exists(ffmpeg):
-            ffmpeg = 'ffmpeg'
+        # Check multiple possible locations
+        ffmpeg_paths = ['/opt/homebrew/bin/ffmpeg', '/usr/bin/ffmpeg', 'ffmpeg']
+        ffprobe_paths = ['/opt/homebrew/bin/ffprobe', '/usr/bin/ffprobe', 'ffprobe']
+        
+        ffmpeg = None
+        ffprobe = None
+        
+        for path in ffmpeg_paths:
+            if os.path.exists(path) or path == 'ffmpeg':
+                ffmpeg = path
+                break
+        for path in ffprobe_paths:
+            if os.path.exists(path) or path == 'ffprobe':
+                ffprobe = path
+                break
 
         probe_cmd = [ffprobe, '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_type',
                      '-of', 'default=noprint_wrappers=1:nokey=1', video_path]
@@ -673,9 +701,13 @@ def upload_file():
 
         try:
             # Quick upload to Supabase Storage only
+            print(f"📤 Uploading {filename} to Supabase Storage...")
             video_remote_path = f"videos/{filename}"
+            
             with open(tmp_path, 'rb') as f:
                 video_data = f.read()
+            
+            print(f"📦 File size: {len(video_data) / 1024 / 1024:.2f} MB")
             
             supabase.storage.from_(BUCKET_NAME).upload(
                 video_remote_path,
@@ -684,20 +716,23 @@ def upload_file():
             )
             
             video_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{video_remote_path}"
+            print(f"✅ Uploaded to: {video_url}")
             
             # Create minimal video record
             clean_title = os.path.splitext(filename)[0].replace('-', ' ').replace('_', ' ')
             video_data = {
                 'filename': filename,
+                'title': clean_title,
                 'duration': 0,  # Will be updated during processing
                 'status': 'pending',
                 'thumbnail': None,
                 'custom_tags': '',
-                'supabase_video_url': video_url,
-                'title': clean_title
+                'supabase_video_url': video_url
             }
+            print(f"💾 Creating database record...")
             result = supabase.table('videos').insert(video_data).execute()
             video_id = result.data[0]['id']
+            print(f"✅ Video ID: {video_id}")
             
             # Clean up temp file
             if os.path.exists(tmp_path):
@@ -708,10 +743,11 @@ def upload_file():
                 'success': True, 
                 'filename': filename,
                 'video_id': video_id,
-                'message': 'Video uploaded! Processing will happen in background. Refresh page to see it.'
+                'message': 'Video uploaded! Refresh page to see it.'
             })
             
         except Exception as e:
+            print(f"❌ Upload error: {str(e)}")
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
             return jsonify({'error': str(e)}), 500

@@ -1,0 +1,257 @@
+╔════════════════════════════════════════════════════════════╗
+║         B-ROLL MAPPER - SUPABASE DEPLOYMENT                ║
+║                   CHECKLIST                                ║
+╚════════════════════════════════════════════════════════════╝
+
+📋 PRE-DEPLOYMENT CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Supabase project created
+✅ API keys obtained (anon + service_role)
+✅ Railway account ready (or will create)
+✅ 100+ videos ready (2-3GB in uploads/ folder)
+✅ SQLite database exists (broll_semantic.db)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 DEPLOYMENT STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 1: Setup Supabase Database (5 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+□ Go to: https://supabase.com/dashboard/project/frfrevcsrissjgtyowtb
+□ Click "SQL Editor" (left sidebar)
+□ Click "New Query"
+□ Open file: supabase_schema.sql
+□ Copy ALL contents
+□ Paste into SQL Editor
+□ Click "RUN"
+□ Verify: "Success. No rows returned."
+
+Expected Result:
+  ✅ Tables created: videos, clips, visual_frames
+  ✅ pgvector extension enabled
+  ✅ Indexes created
+  ✅ RLS policies configured
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 2: Migrate Data from SQLite (10 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+□ Open terminal in project folder
+□ Run: pip3 install supabase python-dotenv psycopg2-binary
+□ Run: python3 migrate_to_supabase.py
+□ Watch progress (will show each video migrating)
+□ Verify: "MIGRATION SUCCESSFUL - All data migrated!"
+
+Expected Output:
+  📹 MIGRATING VIDEOS TABLE
+    ✅ Migrated video 1/100: video1.mp4
+    ...
+  ✅ Videos migration complete: 100 success, 0 failed
+
+  🎤 MIGRATING CLIPS TABLE
+    ✅ Migrated batch: 100/150 clips
+    ...
+  ✅ Clips migration complete: 150 success, 0 failed
+
+  🎨 MIGRATING VISUAL FRAMES TABLE
+    ✅ Migrated batch: 100/200 frames
+    ...
+  ✅ Visual frames migration complete: 200 success, 0 failed
+
+  🔍 VERIFYING MIGRATION
+  📊 MIGRATION SUMMARY:
+    Videos:        SQLite: 100 → Supabase: 100
+    Clips:         SQLite: 150 → Supabase: 150
+    Visual Frames: SQLite: 200 → Supabase: 200
+
+  ✅ MIGRATION SUCCESSFUL - All data migrated!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 3: Create Supabase Storage Bucket (3 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+□ Go to: https://supabase.com/dashboard/project/frfrevcsrissjgtyowtb/storage
+□ Click "New Bucket"
+□ Name: broll-videos
+□ ✅ Check "Public bucket"
+□ Click "Create Bucket"
+□ Go to Policies tab
+□ Add public read policy (see DEPLOYMENT_GUIDE.md)
+
+Expected Result:
+  ✅ Bucket "broll-videos" created
+  ✅ Bucket is public
+  ✅ Policies configured
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 4: Upload Videos to Supabase Storage (15-30 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+□ Ensure uploads/ folder contains all videos
+□ Run: python3 upload_videos_to_supabase.py
+□ Watch progress (will show each video uploading)
+□ Verify: URLs are displayed for each video
+
+Expected Output:
+  📹 UPLOADING VIDEOS TO SUPABASE STORAGE
+  Found 100 videos to upload...
+
+    Uploading: video1.mp4... ✅
+      URL: https://frfrevcsrissjgtyowtb.supabase.co/storage/v1/object/public/broll-videos/videos/video1.mp4
+    ...
+
+  ✅ Videos upload complete: 100 success, 0 failed
+
+  🖼️  UPLOADING THUMBNAILS TO SUPABASE STORAGE
+  ...
+  ✅ Thumbnails upload complete: 100 success, 0 failed
+
+  🔄 UPDATING VIDEO URLS IN DATABASE
+    ✅ Updated: video1.mp4
+    ...
+  ✅ Updated 100 video URLs in database
+
+  🎉 UPLOAD COMPLETE!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 5: Test Locally with Supabase Backend (5 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+□ Update app_semantic.py to use Supabase (I'll help with this)
+□ Run: python3 app_semantic.py
+□ Open: http://localhost:5002
+□ Test search: "happy women"
+□ Test video playback
+□ Verify tags are displayed correctly
+
+Expected Result:
+  ✅ App loads successfully
+  ✅ Videos are displayed with Supabase URLs
+  ✅ Search works
+  ✅ All tags are visible
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 6: Deploy to Railway (10 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+□ Initialize Git (if not already):
+    git init
+    git add .
+    git commit -m "Initial commit for Supabase deployment"
+
+□ Create GitHub repository
+□ Push code to GitHub:
+    git remote add origin <your-github-repo-url>
+    git push -u origin main
+
+□ Go to: https://railway.app/
+□ Click "New Project"
+□ Select "Deploy from GitHub repo"
+□ Connect your GitHub account
+□ Select your repository
+□ Railway will auto-detect Flask app
+
+□ Add environment variables in Railway dashboard:
+    SUPABASE_URL=https://frfrevcsrissjgtyowtb.supabase.co
+    SUPABASE_SERVICE_KEY=<your-supabase-service-role-key>
+    OPENAI_API_KEY=<your-openai-api-key>
+    PORT=5002
+
+□ Click "Deploy"
+□ Wait for deployment (3-5 minutes)
+□ Get your public URL: https://your-app.railway.app
+
+Expected Result:
+  ✅ Deployment successful
+  ✅ App is live at public URL
+  ✅ Can access from anywhere
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 7: Test Deployed Application (5 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+□ Open: https://your-app.railway.app
+□ Test search: "Farzi scene"
+□ Verify: Only Farzi videos appear
+□ Test search: "happy women"
+□ Verify: Only videos with women appear
+□ Test: Upload a new video
+□ Test: Click "Add Visual" on uploaded video
+□ Verify: AI tags are generated correctly
+
+Expected Result:
+  ✅ All searches work correctly
+  ✅ Video upload works
+  ✅ AI tagging works
+  ✅ Custom tags work
+  ✅ No errors in console
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎉 DEPLOYMENT COMPLETE!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Database: Supabase PostgreSQL
+✅ Storage: Supabase Storage (5GB free)
+✅ Backend: Railway ($5/month)
+✅ Public URL: https://your-app.railway.app
+✅ Global Access: Available worldwide
+✅ Scalable: Ready for 500+ videos
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 WHAT YOU ACHIEVED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BEFORE (Local):
+  ❌ Database: SQLite file (local only)
+  ❌ Videos: Local uploads/ folder
+  ❌ Access: Only on your machine
+  ❌ Scalability: Limited
+
+AFTER (Cloud):
+  ✅ Database: Supabase PostgreSQL (scalable)
+  ✅ Videos: Supabase Storage (CDN-backed)
+  ✅ Access: Available worldwide
+  ✅ Scalability: Ready for 500+ videos
+  ✅ Cost: $5/month
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 NEXT STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+□ Share the URL with team members
+□ Upload more videos (up to 500+)
+□ Monitor usage in Supabase dashboard
+□ Set up custom domain (optional)
+□ Enable analytics (optional)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📞 SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If you encounter issues:
+  1. Check DEPLOYMENT_GUIDE.md → Troubleshooting
+  2. Verify Supabase project URL and API keys
+  3. Check Railway logs for errors
+  4. Verify environment variables in Railway
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Created: February 5, 2026
+Your Supabase Project: https://frfrevcsrissjgtyowtb.supabase.co
+Deployment Platform: Railway
+Storage: Supabase Storage (5GB free tier)
+
+🎉 Congratulations on deploying your B-roll tool to the cloud!

@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS videos CASCADE;
 CREATE TABLE videos (
     id BIGSERIAL PRIMARY KEY,
     filename TEXT NOT NULL,
+    title TEXT,  -- Human-readable title extracted from filename
     upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     duration REAL,
     status TEXT DEFAULT 'pending',
