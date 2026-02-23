@@ -988,7 +988,13 @@ def list_videos():
                 'clip_count': clip_counts.get(v['id'], 0),
                 'supabase_video_url': v.get('supabase_video_url')
             })
-        return jsonify({'videos': videos})
+        
+        # Add cache-busting headers
+        response = jsonify({'videos': videos})
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1153,25 +1159,31 @@ def delete_video(video_id):
     try:
         v = supabase.table('videos').select('filename, thumbnail').eq('id', video_id).execute()
         if not v.data:
-            return jsonify({'error': 'Video not found'}), 404
+            # Video doesn't exist - return success anyway (idempotent)
+            print(f"⚠️ Video ID {video_id} not found, but returning success (already deleted)")
+            return jsonify({'success': True, 'message': 'Video already deleted or does not exist'})
 
         filename = v.data[0]['filename']
+        print(f"🗑️ Deleting video ID {video_id}: {filename}")
+        
         supabase.table('clips').delete().eq('video_id', video_id).execute()
         supabase.table('visual_frames').delete().eq('video_id', video_id).execute()
         supabase.table('videos').delete().eq('id', video_id).execute()
 
         try:
             supabase.storage.from_(BUCKET_NAME).remove([f"videos/{filename}"])
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"⚠️ Could not delete video file: {e}")
+        
         thumb_name = f"thumb_{os.path.splitext(filename)[0]}.jpg"
         try:
             supabase.storage.from_(BUCKET_NAME).remove([f"thumbnails/{thumb_name}"])
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"⚠️ Could not delete thumbnail: {e}")
 
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'message': f'Deleted {filename}'})
     except Exception as e:
+        print(f"❌ Delete error: {e}")
         return jsonify({'error': str(e)}), 500
 
 
