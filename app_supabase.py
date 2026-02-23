@@ -700,50 +700,19 @@ def upload_file():
             tmp_path = tmp.name
 
         try:
-            # Quick upload to Supabase Storage only
-            print(f"📤 Uploading {filename} to Supabase Storage...")
-            video_remote_path = f"videos/{filename}"
-            
-            with open(tmp_path, 'rb') as f:
-                video_data = f.read()
-            
-            print(f"📦 File size: {len(video_data) / 1024 / 1024:.2f} MB")
-            
-            supabase.storage.from_(BUCKET_NAME).upload(
-                video_remote_path,
-                video_data,
-                file_options={"content-type": "video/mp4", "upsert": "true"}
-            )
-            
-            video_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{video_remote_path}"
-            print(f"✅ Uploaded to: {video_url}")
-            
-            # Create minimal video record
-            clean_title = os.path.splitext(filename)[0].replace('-', ' ').replace('_', ' ')
-            video_data = {
-                'filename': filename,
-                'title': clean_title,
-                'duration': 0,  # Will be updated during processing
-                'status': 'pending',
-                'thumbnail': None,
-                'custom_tags': '',
-                'supabase_video_url': video_url
-            }
-            print(f"💾 Creating database record...")
-            result = supabase.table('videos').insert(video_data).execute()
-            video_id = result.data[0]['id']
-            print(f"✅ Video ID: {video_id}")
+            # Process video with full AI analysis
+            print(f"🎬 Processing video: {filename}")
+            process_video(tmp_path, filename)
             
             # Clean up temp file
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
             
-            # Return success immediately
+            # Return success
             return jsonify({
                 'success': True, 
                 'filename': filename,
-                'video_id': video_id,
-                'message': 'Video uploaded! Refresh page to see it.'
+                'message': 'Video processed successfully!'
             })
             
         except Exception as e:
