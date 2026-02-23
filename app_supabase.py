@@ -445,11 +445,38 @@ def cosine_similarity(embedding1_blob, embedding2_blob):
 
 
 def upload_to_supabase_storage(local_path, remote_path, content_type=None):
-    """Upload file to Supabase Storage."""
+    """Upload file to Supabase Storage with support for large files."""
     import mimetypes
+    import requests
+    
+    file_size = os.path.getsize(local_path)
+    mime_type = content_type or mimetypes.guess_type(local_path)[0] or 'application/octet-stream'
+    
+    # For files > 45MB, use direct HTTP upload with streaming
+    if file_size > 45 * 1024 * 1024:
+        print(f"📦 Large file ({file_size / 1024 / 1024:.1f}MB) - using streaming upload...")
+        
+        # Use direct Supabase Storage API with streaming
+        upload_url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{remote_path}"
+        
+        headers = {
+            'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+            'Content-Type': mime_type,
+            'x-upsert': 'true'
+        }
+        
+        with open(local_path, 'rb') as f:
+            response = requests.post(upload_url, data=f, headers=headers, timeout=300)
+            
+            if response.status_code not in [200, 201]:
+                raise Exception(f"Upload failed: {response.status_code} - {response.text[:200]}")
+        
+        return f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{remote_path}"
+    
+    # For smaller files, use regular supabase client
     with open(local_path, 'rb') as f:
         file_data = f.read()
-    mime_type = content_type or mimetypes.guess_type(local_path)[0] or 'application/octet-stream'
+    
     supabase.storage.from_(BUCKET_NAME).upload(remote_path, file_data, file_options={"content-type": mime_type, "upsert": "true"})
     return f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{remote_path}"
 
