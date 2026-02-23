@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B-Roll Mapper - Semantic Video Search</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#0f0f0f',
+                            card: '#1a1a1a',
+                            hover: '#252525',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0f0f0f;
+        }
+        
+        .upload-zone {
+            border: 2px dashed #3b82f6;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: #60a5fa;
+            background-color: #1e3a5f;
+        }
+        
+        .video-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .video-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+        }
+        
+        .loading-spinner {
+            border: 3px solid #1a1a1a;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
+                B-Roll Mapper
+            </h1>
+            <p class="text-gray-400">Upload videos, search by meaning, find the perfect 15-second clip</p>
+        </header>
+
+        <!-- Upload Section -->
+        <section class="mb-8">
+            <div class="upload-zone bg-dark-card rounded-lg p-8 text-center cursor-pointer" id="uploadZone">
+                <input type="file" id="fileInput" accept="video/*" multiple class="hidden">
+                <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <p class="text-lg mb-2">
+                    <span class="text-blue-500 font-semibold">Click to upload</span> or drag and drop
+                </p>
+                <p class="text-sm text-gray-500">MP4, MOV, AVI, MKV, WEBM (10-20 videos)</p>
+            </div>
+            
+            <!-- Upload Progress -->
+            <div id="uploadProgress" class="mt-4 hidden">
+                <div class="bg-dark-card rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium" id="uploadStatus">Processing...</span>
+                        <span class="text-sm text-gray-400" id="uploadCount">0/0</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2">
+                        <div class="progress-bar bg-blue-600 h-2 rounded-full" id="progressBar" style="width: 0%"></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2" id="currentFile"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Search Section -->
+        <section class="mb-8">
+            <div class="relative">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="Search for concepts... (e.g., 'sunset over water', 'person talking', 'city traffic')" 
+                    class="w-full bg-dark-card text-white rounded-lg px-4 py-4 pl-12 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                <svg class="absolute left-4 top-4 h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section id="resultsSection" class="hidden">
+            <h2 class="text-2xl font-semibold mb-4">Search Results</h2>
+            <div id="resultsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Results will be inserted here -->
+            </div>
+        </section>
+
+        <!-- Empty State -->
+        <section id="emptyState" class="text-center py-16">
+            <svg class="mx-auto h-24 w-24 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/>
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-500 mb-2">No videos uploaded yet</h3>
+            <p class="text-gray-600">Upload your first video to start searching for B-Roll clips</p>
+        </section>
+
+        <!-- Video Player Modal -->
+        <div id="videoModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50">
+            <div class="bg-dark-card rounded-lg p-6 max-w-4xl w-full mx-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold" id="modalTitle">Video Player</h3>
+                    <button id="closeModal" class="text-gray-400 hover:text-white">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <video id="videoPlayer" class="w-full rounded-lg mb-4" controls></video>
+                <div class="bg-dark-bg rounded p-4">
+                    <p class="text-sm text-gray-400 mb-2">Transcript:</p>
+                    <p id="clipTranscript" class="text-gray-200"></p>
+                    <div class="mt-3 flex items-center text-sm text-gray-500">
+                        <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span id="timeInfo">15-second window</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const searchInput = document.getElementById('searchInput');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsGrid = document.getElementById('resultsGrid');
+        const emptyState = document.getElementById('emptyState');
+        const videoModal = document.getElementById('videoModal');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressBar = document.getElementById('progressBar');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const uploadCount = document.getElementById('uploadCount');
+        const currentFile = document.getElementById('currentFile');
+
+        // Upload zone interactions
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-over');
+        });
+        
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        // File upload handler
+        async function handleFiles(files) {
+            if (files.length === 0) return;
+            
+            uploadProgress.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+            
+            const totalFiles = files.length;
+            let completed = 0;
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                currentFile.textContent = `Processing: ${file.name}`;
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                    const response = await fetch('http://localhost:5001/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        completed++;
+                        uploadCount.textContent = `${completed}/${totalFiles}`;
+                        progressBar.style.width = `${(completed / totalFiles) * 100}%`;
+                    } else {
+                        console.error('Upload failed:', result.error);
+                    }
+                } catch (error) {
+                    console.error('Error uploading file:', error);
+                }
+            }
+            
+            uploadStatus.textContent = 'Complete!';
+            currentFile.textContent = 'All videos processed and ready for search';
+            
+            setTimeout(() => {
+                uploadProgress.classList.add('hidden');
+                progressBar.style.width = '0%';
+                uploadStatus.textContent = 'Processing...';
+                fileInput.value = '';
+            }, 3000);
+        }
+
+        // Search functionality
+        let searchTimeout;
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                performSearch(e.target.value);
+            }, 500);
+        });
+
+        async function performSearch(query) {
+            if (!query.trim()) {
+                resultsSection.classList.add('hidden');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:5001/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query })
+                });
+
+                const data = await response.json();
+                displayResults(data.results);
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+        }
+
+        function displayResults(results) {
+            resultsGrid.innerHTML = '';
+            
+            if (results.length === 0) {
+                resultsSection.classList.add('hidden');
+                return;
+            }
+
+            resultsSection.classList.remove('hidden');
+
+            results.forEach(result => {
+                const card = document.createElement('div');
+                card.className = 'video-card bg-dark-card rounded-lg overflow-hidden cursor-pointer';
+                card.onclick = () => playClip(result);
+                
+                const similarityPercent = (result.similarity * 100).toFixed(1);
+                const matchColor = result.similarity > 0.5 ? 'text-green-500' : result.similarity > 0.3 ? 'text-yellow-500' : 'text-gray-500';
+                
+                card.innerHTML = `
+                    <div class="p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold text-sm truncate flex-1">${result.filename}</h3>
+                            <span class="${matchColor} text-xs font-bold ml-2">${similarityPercent}%</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mb-3 line-clamp-3">${result.text}</p>
+                        <div class="flex items-center text-xs text-gray-500">
+                            <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            ${formatTime(result.timestamp)} - ${formatTime(result.timestamp + result.duration)}
+                        </div>
+                    </div>
+                `;
+                
+                resultsGrid.appendChild(card);
+            });
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function playClip(result) {
+            const videoUrl = `http://localhost:5001/uploads/${result.filename}`;
+            videoPlayer.src = videoUrl;
+            videoPlayer.currentTime = result.timestamp;
+            
+            document.getElementById('modalTitle').textContent = result.filename;
+            document.getElementById('clipTranscript').textContent = result.text;
+            document.getElementById('timeInfo').textContent = 
+                `Playing from ${formatTime(result.timestamp)} (${result.duration}s clip)`;
+            
+            videoModal.classList.remove('hidden');
+            videoModal.classList.add('flex');
+            videoPlayer.play();
+        }
+
+        // Close modal
+        document.getElementById('closeModal').addEventListener('click', () => {
+            videoModal.classList.add('hidden');
+            videoModal.classList.remove('flex');
+            videoPlayer.pause();
+        });
+
+        // Close modal on background click
+        videoModal.addEventListener('click', (e) => {
+            if (e.target === videoModal) {
+                videoModal.classList.add('hidden');
+                videoModal.classList.remove('flex');
+                videoPlayer.pause();
+            }
+        });
+    </script>
+</body>
+</html>

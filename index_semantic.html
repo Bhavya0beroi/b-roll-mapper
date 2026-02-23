@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B-Roll Semantic Search - AI-Powered Video Library</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#0f0f0f',
+                            card: '#1a1a1a',
+                            hover: '#252525',
+                        },
+                        light: {
+                            bg: '#f8fafc',
+                            card: '#ffffff',
+                            hover: '#f1f5f9',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            transition: background-color 0.3s ease;
+        }
+        
+        body.dark {
+            background-color: #0f0f0f;
+        }
+        
+        body:not(.dark) {
+            background-color: #f8fafc;
+        }
+        
+        .upload-zone {
+            border: 2px dashed #3b82f6;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: #60a5fa;
+            background-color: #1e3a5f;
+        }
+        
+        .video-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .video-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+        }
+        
+        .loading-spinner {
+            border: 3px solid #1a1a1a;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        
+        #searchInput {
+            transition: all 0.3s ease;
+        }
+        
+        #searchInput:focus {
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <header class="mb-8 flex items-center justify-between">
+            <div>
+                <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
+                    🎬 B-Roll Semantic Search
+                </h1>
+                <p class="text-gray-400 dark:text-gray-400">AI-powered video library with semantic search • Upload → Transcribe → Embed → Search</p>
+            </div>
+            <button id="themeToggle" class="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                <span class="dark:hidden">🌙 Dark</span>
+                <span class="hidden dark:inline">☀️ Light</span>
+            </button>
+        </header>
+
+        <!-- Upload Section -->
+        <section class="mb-8">
+            <div class="upload-zone bg-white dark:bg-dark-card border-2 border-dashed border-blue-500 rounded-lg p-8 text-center cursor-pointer" id="uploadZone">
+                <input type="file" id="fileInput" accept="video/*,.gif,image/gif" multiple class="hidden">
+                <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <p class="text-lg mb-2">
+                    <span class="text-blue-500 font-semibold">Click to upload</span> or drag and drop
+                </p>
+                <p class="text-sm text-gray-500">MP4, MOV, AVI, MKV, WEBM, GIF</p>
+            </div>
+            
+            <!-- Upload Progress -->
+            <div id="uploadProgress" class="mt-4 hidden">
+                <div class="bg-white dark:bg-dark-card border dark:border-gray-700 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium" id="uploadStatus">Processing...</span>
+                        <span class="text-sm text-gray-400" id="uploadCount">0/0</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2">
+                        <div class="progress-bar bg-blue-600 h-2 rounded-full" id="progressBar" style="width: 0%"></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2" id="currentFile"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Search Section with Filter -->
+        <section class="mb-8">
+            <div class="flex gap-3">
+                <div class="relative flex-1">
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        placeholder="🔍 Search for B-Rolls... (e.g., 'food', 'customer service', 'office scene')" 
+                        class="w-full bg-white dark:bg-dark-card text-gray-900 dark:text-white border dark:border-gray-700 rounded-lg px-4 py-4 pl-12 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                    <svg class="absolute left-4 top-4 h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <button id="clearSearch" class="absolute right-4 top-4 text-gray-400 hover:text-white hidden">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Filter Button -->
+                <button 
+                    id="filterToggle"
+                    onclick="toggleFilter()"
+                    class="px-6 py-4 rounded-lg border border-gray-700 bg-white dark:bg-dark-card text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                    </svg>
+                    <span class="font-medium">Filter</span>
+                    <span id="filterCount" class="hidden ml-1 px-2 py-0.5 text-xs bg-blue-500 text-white rounded-full"></span>
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">💡 Multi-modal AI search: Finds B-Rolls by audio transcripts + visual content (objects, scenes, actions)</p>
+        </section>
+        
+        <!-- Filter Panel (Hidden by default) -->
+        <section id="filterPanel" class="mb-8 hidden">
+            <div id="filterPanelContent" class="bg-white dark:bg-dark-card border dark:border-gray-700 rounded-lg p-6 shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Filters</h3>
+                    <button onclick="clearFilters()" class="text-sm text-blue-500 hover:text-blue-600">Clear All</button>
+                </div>
+                
+                <!-- Emotions Filter -->
+                <div class="mb-6">
+                    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Emotions</h4>
+                    <div class="flex flex-wrap gap-2" id="emotionFilters">
+                        <!-- Dynamic emotion tags will be inserted here -->
+                    </div>
+                </div>
+                
+                <!-- Genres Filter -->
+                <div class="mb-6">
+                    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Genres</h4>
+                    <div class="flex flex-wrap gap-2" id="genreFilters">
+                        <!-- Dynamic genre tags will be inserted here -->
+                    </div>
+                </div>
+                
+                <!-- Search Button -->
+                <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <button 
+                        onclick="applyFiltersAndSearch()"
+                        class="w-full px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        <span>Search with Filters</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Search Results Section -->
+        <section id="resultsSection" class="hidden mb-8">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">🎯 Search Results</h2>
+                <span id="resultCount" class="text-sm text-gray-600 dark:text-gray-400"></span>
+            </div>
+            <div id="resultsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Results will be inserted here -->
+            </div>
+        </section>
+
+        <!-- No Results State (for search) -->
+        <section id="noResultsState" class="text-center py-16 hidden">
+            <svg class="mx-auto h-24 w-24 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-500 mb-2">No matching B-Rolls found</h3>
+            <p class="text-gray-600">Try a different keyword or upload more videos</p>
+        </section>
+
+        <!-- Video Library Section -->
+        <section class="mb-8" id="librarySection">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">📚 Video Library</h2>
+                <button id="refreshLibrary" class="text-blue-500 hover:text-blue-400 text-sm flex items-center gap-2">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+            <div id="libraryGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Library items will be inserted here -->
+            </div>
+        </section>
+
+        <!-- Empty Library State -->
+        <section id="emptyState" class="text-center py-16 hidden">
+            <svg class="mx-auto h-24 w-24 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/>
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-500 mb-2">No videos in library yet</h3>
+            <p class="text-gray-600">Upload your first video to build your AI-powered B-Roll library</p>
+        </section>
+
+        <!-- Video Player Modal -->
+        <div id="videoModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50">
+            <div class="bg-dark-card rounded-lg p-6 max-w-4xl w-full mx-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold" id="modalTitle">Video Player</h3>
+                    <button id="closeModal" class="text-gray-400 hover:text-white">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <video id="videoPlayer" class="w-full rounded-lg mb-4" controls></video>
+                <img id="gifPlayer" class="w-full rounded-lg mb-4 hidden" alt="GIF player">
+                <div class="bg-dark-bg rounded p-4">
+                    <p class="text-sm text-gray-400 mb-2">Transcript:</p>
+                    <p id="clipTranscript" class="text-gray-200"></p>
+                    <div class="mt-3 flex items-center text-sm text-gray-500">
+                        <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span id="timeInfo">Clip window</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5002';
+        
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const searchInput = document.getElementById('searchInput');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsGrid = document.getElementById('resultsGrid');
+        const emptyState = document.getElementById('emptyState');
+        const videoModal = document.getElementById('videoModal');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const gifPlayer = document.getElementById('gifPlayer');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressBar = document.getElementById('progressBar');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const uploadCount = document.getElementById('uploadCount');
+        const currentFile = document.getElementById('currentFile');
+        const libraryGrid = document.getElementById('libraryGrid');
+        const refreshLibrary = document.getElementById('refreshLibrary');
+        const clearSearch = document.getElementById('clearSearch');
+        const resultCount = document.getElementById('resultCount');
+        const noResultsState = document.getElementById('noResultsState');
+        const librarySection = document.getElementById('librarySection');
+
+        // Theme toggle functionality
+        const themeToggle = document.getElementById('themeToggle');
+        const htmlElement = document.documentElement;
+        const bodyElement = document.body;
+        
+        // Load saved theme or default to light
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        if (savedTheme === 'dark') {
+            htmlElement.classList.add('dark');
+            bodyElement.classList.add('dark');
+        } else {
+            htmlElement.classList.remove('dark');
+            bodyElement.classList.remove('dark');
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            htmlElement.classList.toggle('dark');
+            bodyElement.classList.toggle('dark');
+            
+            // Save preference
+            const newTheme = htmlElement.classList.contains('dark') ? 'dark' : 'light';
+            localStorage.setItem('theme', newTheme);
+        });
+        
+        // Load video library on page load
+        loadLibrary();
+
+        // Upload zone interactions
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-over');
+        });
+        
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        refreshLibrary.addEventListener('click', loadLibrary);
+
+        // Clear search button
+        clearSearch.addEventListener('click', () => {
+            searchInput.value = '';
+            clearSearch.classList.add('hidden');
+            resultsSection.classList.add('hidden');
+            noResultsState.classList.add('hidden');
+            librarySection.classList.remove('hidden');
+            if (libraryGrid.children.length === 0) {
+                emptyState.classList.remove('hidden');
+            }
+        });
+
+        // Show/hide clear button based on input
+        searchInput.addEventListener('input', (e) => {
+            if (e.target.value.trim()) {
+                clearSearch.classList.remove('hidden');
+            } else {
+                clearSearch.classList.add('hidden');
+            }
+        });
+
+        // File upload handler
+        async function handleFiles(files) {
+            if (files.length === 0) return;
+            
+            uploadProgress.classList.remove('hidden');
+            
+            const totalFiles = files.length;
+            let completed = 0;
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                currentFile.textContent = `Processing: ${file.name} (Transcribing + Creating embeddings...)`;
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                    console.log(`📤 Uploading: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+                    const response = await fetch(`${API_BASE}/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    console.log(`📡 Response status: ${response.status}`);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`❌ Server error (${response.status}):`, errorText);
+                        throw new Error(`Server returned ${response.status}: ${errorText}`);
+                    }
+                    
+                    const result = await response.json();
+                    console.log('📊 Result:', result);
+                    
+                    if (result.success) {
+                        completed++;
+                        uploadCount.textContent = `${completed}/${totalFiles}`;
+                        progressBar.style.width = `${(completed / totalFiles) * 100}%`;
+                        console.log(`✅ Successfully uploaded: ${file.name}`);
+                    } else {
+                        console.error('❌ Upload failed:', result.error);
+                        alert(`Failed to process ${file.name}:\n\n${result.error}\n\nCheck console (F12) for details.`);
+                    }
+                } catch (error) {
+                    console.error('❌ Error uploading file:', error);
+                    alert(`Error uploading ${file.name}:\n\n${error.message}\n\nCheck console (F12) for details.`);
+                }
+            }
+            
+            uploadStatus.textContent = '✅ Complete!';
+            currentFile.textContent = 'All videos processed and embeddings created. Ready for semantic search!';
+            
+            // Reload library
+            setTimeout(() => {
+                loadLibrary();
+                uploadProgress.classList.add('hidden');
+                progressBar.style.width = '0%';
+                uploadStatus.textContent = 'Processing...';
+                fileInput.value = '';
+            }, 2000);
+        }
+
+        // Load video library
+        async function loadLibrary() {
+            try {
+                const response = await fetch(`${API_BASE}/videos`);
+                const data = await response.json();
+                
+                libraryGrid.innerHTML = '';
+                
+                if (data.videos.length === 0) {
+                    // Only show empty state if not searching
+                    if (!searchInput.value.trim()) {
+                        emptyState.classList.remove('hidden');
+                        librarySection.classList.remove('hidden');
+                    }
+                    return;
+                }
+                
+                emptyState.classList.add('hidden');
+                // Only show library if not actively searching
+                if (!searchInput.value.trim()) {
+                    librarySection.classList.remove('hidden');
+                }
+                
+                data.videos.forEach(video => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white dark:bg-dark-card border dark:border-gray-700 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer';
+                    
+                    // Make card clickable to play first clip
+                    card.onclick = () => playVideoFromLibrary(video);
+                    
+                    const statusIcon = video.status === 'complete' ? '✅' : 
+                                     video.status === 'processing' ? '⏳' : '❌';
+                    const statusColor = video.status === 'complete' ? 'text-green-500' : 
+                                      video.status === 'processing' ? 'text-yellow-500 pulse-animation' : 'text-red-500';
+                    
+                    const thumbnailUrl = video.thumbnail ? `${API_BASE}/thumbnails/${video.thumbnail}` : '';
+                    
+                    card.innerHTML = `
+                        <div class="relative group">
+                            ${video.thumbnail ? `
+                                <img src="${thumbnailUrl}" alt="${video.filename}" class="w-full h-32 object-cover">
+                            ` : `
+                                <div class="w-full h-32 bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
+                                    <svg class="h-16 w-16 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/>
+                                    </svg>
+                                </div>
+                            `}
+                            <div class="absolute top-2 right-2 ${statusColor} text-lg bg-black bg-opacity-70 rounded-full p-1">${statusIcon}</div>
+                            <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all flex items-center justify-center">
+                                <svg class="h-16 w-16 text-white opacity-0 group-hover:opacity-80 transition-opacity" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+                                </svg>
+                            </div>
+                            <div class="absolute bottom-2 left-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                    id="genVisBtn_${video.id}"
+                                    class="flex-1 bg-purple-500 hover:bg-purple-600 text-white text-xs px-3 py-1 rounded font-medium transition-colors" 
+                                    onclick="event.stopPropagation(); reprocessVideoWithUI(${video.id}, '${video.filename}')"
+                                >
+                                    🎨 Generate Visuals
+                                </button>
+                                <button class="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1 rounded" onclick="event.stopPropagation(); deleteVideo(${video.id}, '${video.filename}')">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <div class="flex items-start justify-between mb-2">
+                                <h3 class="font-semibold text-sm truncate flex-1 text-gray-900 dark:text-white">${video.filename}</h3>
+                            </div>
+                            <div class="text-xs text-gray-700 dark:text-gray-400 space-y-1">
+                                <p class="font-medium">⏱️ Duration: ${formatTime(video.duration)}</p>
+                                <p class="font-medium">📝 Clips: ${video.clip_count}</p>
+                                <p class="text-gray-500 dark:text-gray-500">📅 ${new Date(video.upload_date).toLocaleString()}</p>
+                            </div>
+                            
+                            <!-- Custom Tags Section -->
+                            <div id="customTags_${video.id}" class="mt-3">
+                                ${renderCustomTags(video.id, video.custom_tags || '')}
+                            </div>
+                            
+                            <!-- Add Tag Button -->
+                            <button 
+                                class="mt-2 w-full bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs px-3 py-1.5 rounded border border-blue-200 dark:border-blue-800 font-medium transition-colors flex items-center justify-center gap-1"
+                                onclick="event.stopPropagation(); addCustomTag(${video.id}, '${video.filename}')"
+                            >
+                                <span class="text-base">+</span> Add Tag
+                            </button>
+                        </div>
+                    `;
+                    
+                    libraryGrid.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading library:', error);
+            }
+        }
+
+        // Search functionality with debouncing
+        let searchTimeout;
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+            
+            // If search is empty, show library
+            if (!query) {
+                resultsSection.classList.add('hidden');
+                noResultsState.classList.add('hidden');
+                librarySection.classList.remove('hidden');
+                if (libraryGrid.children.length === 0) {
+                    emptyState.classList.remove('hidden');
+                }
+                return;
+            }
+            
+            // Hide library when user starts typing
+            librarySection.classList.add('hidden');
+            emptyState.classList.add('hidden');
+            
+            // Debounce search
+            searchTimeout = setTimeout(() => {
+                performSearch(query);
+            }, 500);
+        });
+
+        // Toggle category tags expand/collapse
+        function toggleCategoryTags(categoryId) {
+            const hiddenTags = document.getElementById(`hidden_${categoryId}`);
+            const chevron = document.getElementById(`chevron_${categoryId}`);
+            const buttonText = document.getElementById(`text_${categoryId}`);
+            
+            if (hiddenTags && chevron && buttonText) {
+                const isExpanded = hiddenTags.style.display !== 'none';
+                
+                if (isExpanded) {
+                    // Collapse
+                    hiddenTags.style.display = 'none';
+                    chevron.style.transform = 'rotate(0deg)';
+                    const hiddenCount = hiddenTags.querySelectorAll('span').length;
+                    buttonText.textContent = `+${hiddenCount} more`;
+                } else {
+                    // Expand
+                    hiddenTags.style.display = 'inline-flex';
+                    hiddenTags.style.flexWrap = 'wrap';
+                    hiddenTags.style.gap = '0.25rem';
+                    chevron.style.transform = 'rotate(180deg)';
+                    buttonText.textContent = 'Show less';
+                }
+            }
+        }
+
+        async function performSearch(query) {
+            try {
+                console.log('🔍 Searching for:', query);
+                console.log('🎭 Emotion filters:', Array.from(selectedEmotions));
+                console.log('🎬 Genre filters:', Array.from(selectedGenres));
+                
+                const response = await fetch(`${API_BASE}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        query,
+                        emotions: Array.from(selectedEmotions),
+                        genres: Array.from(selectedGenres)
+                    })
+                });
+
+                console.log('📡 Response status:', response.status);
+                const data = await response.json();
+                console.log('📊 Results received:', data.results.length, 'items');
+                console.log('📋 First result:', data.results[0]);
+                displayResults(data.results, query);
+            } catch (error) {
+                console.error('❌ Search error:', error);
+                noResultsState.classList.remove('hidden');
+                resultsSection.classList.add('hidden');
+            }
+        }
+
+        function displayResults(results, query) {
+            console.log('🎨 Displaying results:', results.length, 'items for query:', query);
+            resultsGrid.innerHTML = '';
+            
+            // If no results, show empty state
+            if (!results || results.length === 0) {
+                console.log('⚠️ No results to display');
+                resultsSection.classList.add('hidden');
+                noResultsState.classList.remove('hidden');
+                // Update empty state text if server provided message
+                const emptyStateText = noResultsState.querySelector('p');
+                if (emptyStateText) {
+                    emptyStateText.textContent = `No relevant B-rolls found for "${query}". Try different keywords or upload more videos.`;
+                }
+                return;
+            }
+
+            // Show results, hide empty state
+            console.log('✅ Showing results section');
+            noResultsState.classList.add('hidden');
+            resultsSection.classList.remove('hidden');
+            resultCount.textContent = `${results.length} result${results.length === 1 ? '' : 's'} for "${query}"`;
+
+            results.forEach((result, index) => {
+                console.log(`  📌 Result ${index + 1}:`, result.filename, 'similarity:', result.similarity);
+                const card = document.createElement('div');
+                card.className = 'video-card bg-white dark:bg-dark-card border dark:border-gray-700 rounded-lg overflow-hidden cursor-pointer';
+                card.onclick = () => playClip(result);
+                
+                const similarityPercent = (result.similarity * 100).toFixed(1);
+                const matchColor = result.similarity > 0.7 ? 'text-green-500' : 
+                                  result.similarity > 0.5 ? 'text-yellow-500' : 'text-gray-500';
+                
+                // Determine source badge with music detection
+                const isVisual = result.source === 'visual';
+                const isMusic = !isVisual && result.text === '♪♪';
+                const sourceBadge = isVisual 
+                    ? '<span class="bg-purple-500 text-white text-xs px-2 py-1 rounded">🎨 Visual</span>'
+                    : isMusic
+                    ? '<span class="bg-indigo-500 text-white text-xs px-2 py-1 rounded">🎵 Music</span>'
+                    : '<span class="bg-blue-500 text-white text-xs px-2 py-1 rounded">🎤 Audio</span>';
+                
+                // Emotion badge REMOVED - emotions now shown in categorized tags below
+                
+                // OCR text badge (if visual and has OCR text)
+                let ocrBadge = '';
+                if (isVisual && result.ocr_text) {
+                    ocrBadge = `<div class="mt-2 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded"><strong>📝 Text:</strong> "${result.ocr_text.substring(0, 50)}${result.ocr_text.length > 50 ? '...' : ''}"</div>`;
+                }
+                
+                // Custom tags badge (HIGHEST PRIORITY - appears first!)
+                let customTagsBadge = '';
+                if (isVisual && result.custom_tags) {
+                    const customTags = result.custom_tags.split(',').map(t => t.trim()).filter(t => t);
+                    if (customTags.length > 0) {
+                        const customTagItems = customTags.map(tag => 
+                            `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 border border-green-300 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-800 cursor-pointer">
+                                <span onclick="event.stopPropagation(); searchInput.value='${tag.replace(/'/g, "\\'")}'; performSearch('${tag.replace(/'/g, "\\'")}');">🏷️ ${tag}</span>
+                                <button class="ml-1 hover:text-red-600 dark:hover:text-red-400 font-bold" onclick="event.stopPropagation(); deleteCustomTagFromResult(${result.video_id}, '${tag.replace(/'/g, "\\'")}', ${index})" title="Delete tag">×</button>
+                            </span>`
+                        ).join(' ');
+                        
+                        customTagsBadge = `<div class="mt-2"><p class="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2">
+                            <span>Custom Tags:</span>
+                            <button class="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-0.5 rounded" onclick="event.stopPropagation(); addCustomTagFromResult(${result.video_id}, '${result.filename}', ${index})">+ Add</button>
+                        </p><div class="flex flex-wrap gap-1">${customTagItems}</div></div>`;
+                    } else {
+                        // Show "Add Tag" button even when no custom tags exist
+                        customTagsBadge = `<div class="mt-2">
+                            <button class="text-xs bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 rounded border border-blue-200 dark:border-blue-800 font-medium flex items-center gap-1" onclick="event.stopPropagation(); addCustomTagFromResult(${result.video_id}, '${result.filename}', ${index})">
+                                <span class="text-base">+</span> Add Custom Tag
+                            </button>
+                        </div>`;
+                    }
+                } else if (isVisual) {
+                    // Always show "Add Tag" button for visual results
+                    customTagsBadge = `<div class="mt-2">
+                        <button class="text-xs bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 rounded border border-blue-200 dark:border-blue-800 font-medium flex items-center gap-1" onclick="event.stopPropagation(); addCustomTagFromResult(${result.video_id}, '${result.filename}', ${index})">
+                            <span class="text-base">+</span> Add Custom Tag
+                        </button>
+                    </div>`;
+                }
+                
+                // AI-generated tags badge - NEW 5-CATEGORY SYSTEM WITH FALLBACK
+                let tagsBadge = '';
+                if (isVisual) {
+                    // Parse categorized tags from backend
+                    const emotionTagsArray = result.emotion_tags ? result.emotion_tags.replace(/[\[\]']/g, '').split(',').map(t => t.trim()).filter(t => t) : [];
+                    const laughTagsArray = result.laugh_tags ? result.laugh_tags.replace(/[\[\]']/g, '').split(',').map(t => t.trim()).filter(t => t) : [];
+                    const contextualTagsArray = result.contextual_tags ? result.contextual_tags.replace(/[\[\]']/g, '').split(',').map(t => t.trim()).filter(t => t) : [];
+                    const characterTagsArray = result.character_tags ? result.character_tags.replace(/[\[\]']/g, '').split(',').map(t => t.trim()).filter(t => t) : [];
+                    const semanticTagsArray = result.semantic_tags ? result.semantic_tags.replace(/[\[\]']/g, '').split(',').map(t => t.trim()).filter(t => t) : [];
+                    
+                    const hasNewTags = emotionTagsArray.length > 0 || laughTagsArray.length > 0 || contextualTagsArray.length > 0 || characterTagsArray.length > 0 || semanticTagsArray.length > 0;
+                    
+                    if (hasNewTags) {
+                        // NEW SYSTEM: Show 5 categorized sections
+                        const uniqueId = `tags_${index}_${Date.now()}`;
+                        let categoriesHTML = '';
+                        
+                        // Helper function to render tag category with expand/collapse
+                        const renderCategory = (title, emoji, tags, bgColor) => {
+                            // ALWAYS show Laugh Tags section (even if empty)
+                            const isLaughTags = title === 'Laugh Type Tags';
+                            if (tags.length === 0 && !isLaughTags) return '';
+                            
+                            const categoryId = `category_${title.replace(/\s+/g, '_')}_${index}_${Date.now()}`;
+                            const maxVisible = 3;
+                            const hasMore = tags.length > maxVisible;
+                            
+                            // First 3 tags
+                            const visibleTags = tags.slice(0, maxVisible);
+                            const hiddenTags = tags.slice(maxVisible);
+                            
+                            // If Laugh Tags section is empty, show a message
+                            if (isLaughTags && tags.length === 0) {
+                                return `<div class="mb-2">
+                                    <p class="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">${emoji} ${title}:</p>
+                                    <div class="flex flex-wrap gap-1">
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 italic">No laughing/smiling detected in this scene</span>
+                                    </div>
+                                </div>`;
+                            }
+                            
+                            const visibleTagsHTML = visibleTags.map(tag => 
+                                `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${bgColor} hover:opacity-80 cursor-pointer" onclick="event.stopPropagation(); searchInput.value='${tag.replace(/'/g, "\\'")}'; performSearch('${tag.replace(/'/g, "\\'")}');">${tag}</span>`
+                            ).join(' ');
+                            
+                            const hiddenTagsHTML = hasMore ? hiddenTags.map(tag => 
+                                `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${bgColor} hover:opacity-80 cursor-pointer" onclick="event.stopPropagation(); searchInput.value='${tag.replace(/'/g, "\\'")}'; performSearch('${tag.replace(/'/g, "\\'")}');">${tag}</span>`
+                            ).join(' ') : '';
+                            
+                            const expandButton = hasMore ? 
+                                `<button 
+                                    id="toggle_${categoryId}" 
+                                    onclick="event.stopPropagation(); toggleCategoryTags('${categoryId}')" 
+                                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors cursor-pointer">
+                                    <span id="text_${categoryId}">+${hiddenTags.length} more</span>
+                                    <svg id="chevron_${categoryId}" class="ml-1 h-3 w-3 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>` : '';
+                            
+                            return `<div class="mb-2">
+                                <p class="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">${emoji} ${title}:</p>
+                                <div class="flex flex-wrap gap-1">
+                                    ${visibleTagsHTML}
+                                    <span id="hidden_${categoryId}" class="hidden flex-wrap gap-1" style="display: none;">
+                                        ${hiddenTagsHTML}
+                                    </span>
+                                    ${expandButton}
+                                </div>
+                            </div>`;
+                        };
+                        
+                        // 1️⃣ Emotion Tags
+                        categoriesHTML += renderCategory('Emotion Tags', '🎭', emotionTagsArray, 'bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-200');
+                        
+                        // 2️⃣ Laugh Type Tags
+                        categoriesHTML += renderCategory('Laugh Type Tags', '😂', laughTagsArray, 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200');
+                        
+                        // 3️⃣ Contextual Tags
+                        categoriesHTML += renderCategory('Contextual Tags', '🎬', contextualTagsArray, 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200');
+                        
+                        // 4️⃣ Character Tags
+                        categoriesHTML += renderCategory('Character Tags', '👥', characterTagsArray, 'bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200');
+                        
+                        // 5️⃣ Semantic Tags
+                        categoriesHTML += renderCategory('Semantic Tags', '🔎', semanticTagsArray, 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200');
+                        
+                        tagsBadge = `<div class="mt-3 border-t dark:border-gray-700 pt-3">
+                            <p class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">AI Tags</p>
+                            <div id="${uniqueId}">${categoriesHTML}</div>
+                        </div>`;
+                    } else if (result.tags) {
+                        // FALLBACK: Show old tags system (for videos not yet reprocessed)
+                        const allTags = result.tags.split(',').map(t => t.trim()).filter(t => t);
+                        if (allTags.length > 0) {
+                            const uniqueId = `tags_${index}_${Date.now()}`;
+                            const first5Tags = allTags.slice(0, 5);
+                            const remainingCount = allTags.length - 5;
+                            
+                            const tagItems = first5Tags.map(tag => 
+                                `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 hover:opacity-80 cursor-pointer" onclick="event.stopPropagation(); searchInput.value='${tag.replace(/'/g, "\\'")}'; performSearch('${tag.replace(/'/g, "\\'")}');">${tag}</span>`
+                            ).join(' ');
+                            
+                            const expandButton = remainingCount > 0 
+                                ? `<button class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700" onclick="event.stopPropagation(); toggleAllTags('${uniqueId}', ${JSON.stringify(allTags).replace(/"/g, '&quot;')})">+${remainingCount} more</button>`
+                                : '';
+                            
+                            tagsBadge = `<div class="mt-2 border-t dark:border-gray-700 pt-2">
+                                <p class="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">AI Tags (Old Format - Reprocess for Categories):</p>
+                                <div id="${uniqueId}" class="flex flex-wrap gap-1 items-center">${tagItems} ${expandButton}</div>
+                            </div>`;
+                        }
+                    }
+                }
+                
+                // Get thumbnail from filename
+                const thumbnailName = `thumb_${result.filename.replace(/\.[^/.]+$/, '')}.jpg`;
+                const thumbnailUrl = `${API_BASE}/thumbnails/${thumbnailName}`;
+                
+                card.innerHTML = `
+                    <div class="relative">
+                        <img src="${thumbnailUrl}" alt="${result.filename}" class="w-full h-32 object-cover" onerror="this.style.display='none'">
+                        <div class="absolute top-2 right-2 ${matchColor} text-xs font-bold bg-black bg-opacity-80 px-2 py-1 rounded">
+                            🎯 ${similarityPercent}%
+                        </div>
+                        <div class="absolute top-2 left-2 flex gap-1">
+                            ${sourceBadge}
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold text-sm truncate flex-1 text-gray-900 dark:text-white">${result.filename}</h3>
+                        </div>
+                        <p class="text-gray-600 dark:text-gray-400 text-sm mb-3 line-clamp-3">${result.text}</p>
+                        ${ocrBadge}
+                        ${customTagsBadge}
+                        ${tagsBadge}
+                        <div class="flex items-center text-xs text-gray-500 dark:text-gray-500 mt-2">
+                            <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            ${formatTime(result.start_time)} - ${formatTime(result.end_time)}
+                        </div>
+                    </div>
+                `;
+                
+                resultsGrid.appendChild(card);
+            });
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // Toggle all tags display (expand/collapse)
+        function toggleAllTags(uniqueId, allTags) {
+            const container = document.getElementById(uniqueId);
+            if (!container) return;
+            
+            const currentlyExpanded = container.dataset.expanded === 'true';
+            
+            if (currentlyExpanded) {
+                // Collapse: Show only first 3 + expand button
+                const first3Tags = allTags.slice(0, 3);
+                const remainingCount = allTags.length - 3;
+                
+                const tagItems = first3Tags.map(tag => 
+                    `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800 cursor-pointer" onclick="event.stopPropagation(); searchInput.value='${tag.replace(/'/g, "\\'")}'; performSearch('${tag.replace(/'/g, "\\'")}');">${tag}</span>`
+                ).join(' ');
+                
+                const expandButton = `<button class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700" onclick="event.stopPropagation(); toggleAllTags('${uniqueId}', ${JSON.stringify(allTags).replace(/"/g, '&quot;')})">+${remainingCount} more</button>`;
+                
+                container.innerHTML = `${tagItems} ${expandButton}`;
+                container.dataset.expanded = 'false';
+            } else {
+                // Expand: Show all tags + collapse button
+                const tagItems = allTags.map(tag => 
+                    `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800 cursor-pointer" onclick="event.stopPropagation(); searchInput.value='${tag.replace(/'/g, "\\'")}'; performSearch('${tag.replace(/'/g, "\\'")}');">${tag}</span>`
+                ).join(' ');
+                
+                const collapseButton = `<button class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700" onclick="event.stopPropagation(); toggleAllTags('${uniqueId}', ${JSON.stringify(allTags).replace(/"/g, '&quot;')})">Show less</button>`;
+                
+                container.innerHTML = `${tagItems} ${collapseButton}`;
+                container.dataset.expanded = 'true';
+            }
+        }
+        
+        // ========== CUSTOM TAG FUNCTIONALITY ==========
+        
+        // Render custom tags with delete buttons
+        function renderCustomTags(videoId, customTagsString) {
+            if (!customTagsString || !customTagsString.trim()) {
+                return '<p class="text-xs text-gray-500 dark:text-gray-600 italic">No custom tags yet</p>';
+            }
+            
+            const tags = customTagsString.split(',').map(t => t.trim()).filter(t => t);
+            
+            if (tags.length === 0) {
+                return '<p class="text-xs text-gray-500 dark:text-gray-600 italic">No custom tags yet</p>';
+            }
+            
+            const tagBadges = tags.map(tag => `
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 border border-green-300 dark:border-green-700">
+                    <span class="cursor-pointer hover:underline" onclick="event.stopPropagation(); searchInput.value='${tag.replace(/'/g, "\\'")}'; performSearch('${tag.replace(/'/g, "\\'")}')">${tag}</span>
+                    <button 
+                        class="ml-1 hover:text-red-600 dark:hover:text-red-400 transition-colors font-bold"
+                        onclick="event.stopPropagation(); deleteCustomTag(${videoId}, '${tag.replace(/'/g, "\\'")}')"
+                        title="Delete tag"
+                    >×</button>
+                </span>
+            `).join(' ');
+            
+            return `<div class="flex flex-wrap gap-1 items-center">${tagBadges}</div>`;
+        }
+        
+        // Add custom tag to video
+        async function addCustomTag(videoId, filename) {
+            const tag = prompt(`Add custom tag for "${filename}":\n\nExamples:\n• client-ad\n• intro-shot\n• b-roll-pack-1\n• project-abc`);
+            
+            if (!tag || !tag.trim()) {
+                return; // User cancelled or entered empty tag
+            }
+            
+            const cleanTag = tag.trim();
+            
+            try {
+                const response = await fetch(`${API_BASE}/videos/${videoId}/tags`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tag: cleanTag })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log(`✅ Tag "${cleanTag}" added to video ${videoId}`);
+                    
+                    // Update custom tags display
+                    const container = document.getElementById(`customTags_${videoId}`);
+                    if (container) {
+                        container.innerHTML = renderCustomTags(videoId, result.all_tags);
+                    }
+                    
+                    // Show success feedback
+                    const btn = event.target;
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '✅ Added!';
+                    btn.classList.add('bg-green-500', 'text-white');
+                    btn.classList.remove('bg-blue-50', 'text-blue-600');
+                    
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.classList.remove('bg-green-500', 'text-white');
+                        btn.classList.add('bg-blue-50', 'text-blue-600');
+                    }, 1500);
+                } else {
+                    alert(`Failed to add tag: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Add tag error:', error);
+                alert(`Error adding tag: ${error.message}`);
+            }
+        }
+        
+        // Add custom tag from search result
+        async function addCustomTagFromResult(videoId, filename, resultIndex) {
+            const tag = prompt(`Add custom tag for "${filename}":\n\nExamples:\n• client-ad\n• intro-shot\n• b-roll-pack-1\n• project-abc`);
+            
+            if (!tag || !tag.trim()) {
+                return;
+            }
+            
+            const cleanTag = tag.trim();
+            
+            try {
+                const response = await fetch(`${API_BASE}/videos/${videoId}/tags`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tag: cleanTag })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log(`✅ Tag "${cleanTag}" added to video ${videoId}`);
+                    
+                    // Refresh search results to show new tag
+                    const currentQuery = searchInput.value.trim();
+                    if (currentQuery) {
+                        performSearch(currentQuery);
+                    }
+                } else {
+                    alert(`Failed to add tag: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Add tag error:', error);
+                alert(`Error adding tag: ${error.message}`);
+            }
+        }
+        
+        // Delete custom tag from search result
+        async function deleteCustomTagFromResult(videoId, tag, resultIndex) {
+            if (!confirm(`Delete tag "${tag}"?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/videos/${videoId}/tags/${encodeURIComponent(tag)}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log(`✅ Tag "${tag}" removed from video ${videoId}`);
+                    
+                    // Refresh search results to remove tag
+                    const currentQuery = searchInput.value.trim();
+                    if (currentQuery) {
+                        performSearch(currentQuery);
+                    }
+                } else {
+                    alert(`Failed to delete tag: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Delete tag error:', error);
+                alert(`Error deleting tag: ${error.message}`);
+            }
+        }
+        
+        // Delete custom tag from video
+        async function deleteCustomTag(videoId, tag) {
+            if (!confirm(`Delete tag "${tag}"?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/videos/${videoId}/tags/${encodeURIComponent(tag)}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log(`✅ Tag "${tag}" removed from video ${videoId}`);
+                    
+                    // Update custom tags display
+                    const container = document.getElementById(`customTags_${videoId}`);
+                    if (container) {
+                        container.innerHTML = renderCustomTags(videoId, result.remaining_tags);
+                    }
+                } else {
+                    alert(`Failed to delete tag: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Delete tag error:', error);
+                alert(`Error deleting tag: ${error.message}`);
+            }
+        }
+
+        function playClip(result) {
+            const videoUrl = `${API_BASE}/uploads/${result.filename}`;
+            const isGif = result.filename.toLowerCase().endsWith('.gif');
+            
+            // Show GIF player or video player based on file type
+            if (isGif) {
+                videoPlayer.classList.add('hidden');
+                gifPlayer.classList.remove('hidden');
+                gifPlayer.src = videoUrl;
+            } else {
+                gifPlayer.classList.add('hidden');
+                videoPlayer.classList.remove('hidden');
+                videoPlayer.src = videoUrl;
+                videoPlayer.currentTime = result.start_time;
+                videoPlayer.play();
+            }
+            
+            document.getElementById('modalTitle').textContent = result.filename;
+            document.getElementById('clipTranscript').textContent = result.text;
+            document.getElementById('timeInfo').textContent = isGif 
+                ? `Animated GIF • Duration: ${result.duration.toFixed(1)}s`
+                : `Playing from ${formatTime(result.start_time)} to ${formatTime(result.end_time)} (${result.duration.toFixed(1)}s)`;
+            
+            videoModal.classList.remove('hidden');
+            videoModal.classList.add('flex');
+        }
+        
+        // Play video from library (starts at beginning)
+        async function playVideoFromLibrary(video) {
+            const videoUrl = `${API_BASE}/uploads/${video.filename}`;
+            const isGif = video.filename.toLowerCase().endsWith('.gif');
+            
+            // Show GIF player or video player based on file type
+            if (isGif) {
+                videoPlayer.classList.add('hidden');
+                gifPlayer.classList.remove('hidden');
+                gifPlayer.src = videoUrl;
+            } else {
+                gifPlayer.classList.add('hidden');
+                videoPlayer.classList.remove('hidden');
+                videoPlayer.src = videoUrl;
+                videoPlayer.currentTime = 0;
+                videoPlayer.play();
+            }
+            
+            document.getElementById('modalTitle').textContent = video.filename;
+            document.getElementById('clipTranscript').textContent = isGif 
+                ? `Animated GIF • ${video.clip_count} searchable segments`
+                : `Full video - ${video.clip_count} clips available`;
+            document.getElementById('timeInfo').textContent = 
+                `Duration: ${formatTime(video.duration)} • ${video.clip_count} searchable segments`;
+            
+            videoModal.classList.remove('hidden');
+            videoModal.classList.add('flex');
+        }
+
+        // Close modal
+        document.getElementById('closeModal').addEventListener('click', () => {
+            videoModal.classList.add('hidden');
+            videoModal.classList.remove('flex');
+            videoPlayer.pause();
+            gifPlayer.src = ''; // Reset GIF
+        });
+
+        // Close modal on background click
+        videoModal.addEventListener('click', (e) => {
+            if (e.target === videoModal) {
+                videoModal.classList.add('hidden');
+                videoModal.classList.remove('flex');
+                videoPlayer.pause();
+                gifPlayer.src = ''; // Reset GIF
+            }
+        });
+        
+        // Re-process video with UI feedback (for old and new videos)
+        async function reprocessVideoWithUI(videoId, filename) {
+            const btnId = `genVisBtn_${videoId}`;
+            const button = document.getElementById(btnId);
+            
+            // Confirm with user (enhanced message for nuanced emotions)
+            if (!confirm(`🎨 Regenerate Visual Analysis for "${filename}"?\n\nThis will:\n✅ Analyze video frames with AI\n✅ Detect actors & series/movies\n✅ Generate nuanced emotions (sarcasm, nervous anticipation, etc.)\n✅ Extract on-screen text (OCR)\n✅ Create comprehensive tags\n\n⏱️ Time: ~1-2 minutes\n💰 Cost: ~$0.02-0.05 (OpenAI API)\n\nExisting metadata will be replaced with upgraded analysis.`)) {
+                return;
+            }
+            
+            console.log(`🎨 Starting reprocess for video ${videoId}: ${filename}`);
+            
+            // Update button state: PROCESSING
+            if (button) {
+                button.disabled = true;
+                button.className = 'flex-1 bg-yellow-500 text-white text-xs px-3 py-1 rounded font-medium cursor-wait';
+                button.innerHTML = '⏳ Processing...';
+            }
+            
+            try {
+                // Show global progress indicator
+                uploadProgress.classList.remove('hidden');
+                uploadStatus.textContent = '🎨 Regenerating visual analysis with nuanced emotions...';
+                currentFile.textContent = `Analyzing: ${filename}`;
+                progressBar.style.width = '30%';
+                
+                console.log(`📡 Calling API: /reprocess/${videoId}`);
+                
+                // Call reprocess API
+                const response = await fetch(`${API_BASE}/reprocess/${videoId}`, {
+                    method: 'POST'
+                });
+                
+                console.log(`📊 Response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('📋 Reprocess result:', result);
+                
+                progressBar.style.width = '100%';
+                
+                // Hide progress
+                setTimeout(() => {
+                    uploadProgress.classList.add('hidden');
+                    progressBar.style.width = '0%';
+                }, 1000);
+                
+                if (result.success) {
+                    console.log(`✅ Success! ${result.visual_frames_added} frames added`);
+                    
+                    // Update button state: COMPLETE
+                    if (button) {
+                        button.className = 'flex-1 bg-green-500 text-white text-xs px-3 py-1 rounded font-medium';
+                        button.innerHTML = '✅ Complete!';
+                        
+                        // After 2 seconds, change to "Regenerate"
+                        setTimeout(() => {
+                            button.disabled = false;
+                            button.className = 'flex-1 bg-purple-500 hover:bg-purple-600 text-white text-xs px-3 py-1 rounded font-medium transition-colors';
+                            button.innerHTML = '🔄 Regenerate Visuals';
+                        }, 2000);
+                    }
+                    
+                    // Show success message
+                    alert(`✅ Visual Analysis Complete!\n\n📊 ${result.visual_frames_added} frames analyzed\n🎭 Nuanced emotions detected\n🎬 Actors & series identified\n📝 On-screen text extracted\n\nVideo is now fully searchable with advanced metadata!`);
+                    
+                    // Reload library to show updated data
+                    loadLibrary();
+                    
+                } else if (result.message) {
+                    console.warn('⚠️ Message from server:', result.message);
+                    
+                    // Update button state: ERROR
+                    if (button) {
+                        button.disabled = false;
+                        button.className = 'flex-1 bg-orange-500 hover:bg-orange-600 text-white text-xs px-3 py-1 rounded font-medium';
+                        button.innerHTML = '⚠️ Try Again';
+                    }
+                    
+                    alert(`⚠️ ${result.message}`);
+                } else {
+                    throw new Error(result.error || 'Unknown error');
+                }
+                
+            } catch (error) {
+                console.error('❌ Reprocess error:', error);
+                
+                // Hide progress
+                uploadProgress.classList.add('hidden');
+                progressBar.style.width = '0%';
+                
+                // Update button state: ERROR
+                if (button) {
+                    button.disabled = false;
+                    button.className = 'flex-1 bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1 rounded font-medium';
+                    button.innerHTML = '❌ Failed - Retry';
+                }
+                
+                // Show error message
+                alert(`❌ Error reprocessing video:\n\n${error.message}\n\nPlease check:\n• Video file exists in uploads folder\n• OpenAI API key is valid\n• Server logs for details`);
+            }
+        }
+        
+        // Legacy function (kept for compatibility)
+        async function reprocessVideo(videoId, filename) {
+            return reprocessVideoWithUI(videoId, filename);
+        }
+        
+        // Delete video function
+        async function deleteVideo(videoId, filename) {
+            if (!confirm(`Delete "${filename}"?\n\nThis will remove:\n- Video file\n- All transcript clips\n- All visual frames\n- Thumbnail\n\nThis cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/delete/${videoId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Video deleted successfully!');
+                    loadLibrary();  // Refresh library
+                } else {
+                    alert('Failed to delete video: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Delete error:', error);
+                alert('Error deleting video: ' + error.message);
+            }
+        }
+        
+        // ========== FILTER FUNCTIONALITY ==========
+        
+        let selectedEmotions = new Set();
+        let selectedGenres = new Set();
+        let availableEmotions = new Set();
+        let availableGenres = new Set();
+        
+        // Toggle filter panel
+        function toggleFilter() {
+            const panel = document.getElementById('filterPanel');
+            panel.classList.toggle('hidden');
+            
+            // Load available filters on first open
+            if (!panel.classList.contains('hidden') && availableEmotions.size === 0) {
+                loadAvailableFilters();
+            }
+        }
+        
+        // Load available emotions and genres from database
+        async function loadAvailableFilters() {
+            try {
+                const response = await fetch(`${API_BASE}/filters`);
+                const data = await response.json();
+                
+                availableEmotions = new Set(data.emotions || []);
+                availableGenres = new Set(data.genres || []);
+                
+                renderFilterOptions();
+            } catch (error) {
+                console.error('Error loading filters:', error);
+            }
+        }
+        
+        // Render filter option buttons
+        function renderFilterOptions() {
+            const emotionContainer = document.getElementById('emotionFilters');
+            const genreContainer = document.getElementById('genreFilters');
+            
+            // Render emotions
+            emotionContainer.innerHTML = '';
+            const sortedEmotions = Array.from(availableEmotions).sort();
+            sortedEmotions.forEach(emotion => {
+                const btn = createFilterButton(emotion, 'emotion');
+                emotionContainer.appendChild(btn);
+            });
+            
+            // Render genres
+            genreContainer.innerHTML = '';
+            const sortedGenres = Array.from(availableGenres).sort();
+            sortedGenres.forEach(genre => {
+                const btn = createFilterButton(genre, 'genre');
+                genreContainer.appendChild(btn);
+            });
+        }
+        
+        // Create filter button element
+        function createFilterButton(label, type) {
+            const btn = document.createElement('button');
+            btn.className = 'px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm transition-colors';
+            btn.textContent = label;
+            btn.onclick = () => toggleFilterSelection(label, type, btn);
+            return btn;
+        }
+        
+        // Toggle filter selection
+        function toggleFilterSelection(label, type, button) {
+            const targetSet = type === 'emotion' ? selectedEmotions : selectedGenres;
+            
+            if (targetSet.has(label)) {
+                targetSet.delete(label);
+                button.classList.remove('bg-blue-500', 'text-white', 'border-blue-500');
+                button.classList.add('bg-white', 'dark:bg-gray-800', 'text-gray-700', 'dark:text-gray-300');
+            } else {
+                targetSet.add(label);
+                button.classList.add('bg-blue-500', 'text-white', 'border-blue-500');
+                button.classList.remove('bg-white', 'dark:bg-gray-800', 'text-gray-700', 'dark:text-gray-300');
+            }
+            
+            updateFilterCount();
+            // Don't apply filters automatically - wait for user to click Search button
+        }
+        
+        // Update filter count badge
+        function updateFilterCount() {
+            const count = selectedEmotions.size + selectedGenres.size;
+            const badge = document.getElementById('filterCount');
+            
+            if (count > 0) {
+                badge.textContent = count;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+        
+        // Clear all filters
+        function clearFilters() {
+            selectedEmotions.clear();
+            selectedGenres.clear();
+            
+            // Reset button styles
+            document.querySelectorAll('#emotionFilters button, #genreFilters button').forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white', 'border-blue-500');
+                btn.classList.add('bg-white', 'dark:bg-gray-800', 'text-gray-700', 'dark:text-gray-300');
+            });
+            
+            updateFilterCount();
+        }
+        
+        // Apply filters and perform search (called by Search button in filter panel)
+        function applyFiltersAndSearch() {
+            const query = searchInput.value.trim();
+            
+            // Perform search with selected filters
+            if (query || selectedEmotions.size > 0 || selectedGenres.size > 0) {
+                performSearch(query);
+            } else {
+                // If no query and no filters, show library
+                resultsSection.classList.add('hidden');
+                noResultsState.classList.add('hidden');
+                librarySection.classList.remove('hidden');
+            }
+            
+            // Close filter panel after search
+            document.getElementById('filterPanel').classList.add('hidden');
+        }
+        
+        // Click outside filter panel to close
+        document.addEventListener('click', function(event) {
+            const filterPanel = document.getElementById('filterPanel');
+            const filterToggle = document.getElementById('filterToggle');
+            const filterPanelContent = document.getElementById('filterPanelContent');
+            
+            // Check if click is outside filter panel and filter button
+            if (!filterPanel.classList.contains('hidden') && 
+                !filterPanelContent.contains(event.target) && 
+                !filterToggle.contains(event.target)) {
+                filterPanel.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
