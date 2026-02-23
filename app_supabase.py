@@ -786,12 +786,12 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter):
     v_tags = {v['id']: v.get('custom_tags') or '' for v in v_resp.data}
 
     if not query and (emotions_filter or genres_filter):
-        vf_resp = supabase.table('visual_frames').select('id, video_id, filename, timestamp, visual_description, emotion, ocr_text, tags, genres, deep_emotions, scene_context, people_description, environment, series_movie, actors, emotion_tags, laugh_tags, contextual_tags, character_tags, semantic_tags').execute()
+        vf_resp = supabase.table('visual_frames').select('id, video_id, timestamp, visual_description, emotion, ocr_text, tags, genres, deep_emotions, scene_context, people_description, environment, series_movie, actors, emotion_tags, laugh_tags, contextual_tags, character_tags, semantic_tags').execute()
 
         for vf in vf_resp.data:
             vid = vf.get('video_id')
             custom_tags = v_tags.get(vid, '')
-            fname = vf.get('filename') or (v_map.get(vid) or {}).get('filename', '')
+            fname = (v_map.get(vid) or {}).get('filename', '')
             desc = vf.get('visual_description', '')
             emo = vf.get('emotion') or 'neutral'
             display = f"[Visual - {emo.title()}] {desc}" if emo != 'neutral' else f"[Visual] {desc}"
@@ -823,7 +823,7 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter):
 
     # Optimize: Only fetch needed columns, limit results
     clips_resp = supabase.table('clips').select('id, video_id, start_time, end_time, transcript_text, embedding').limit(500).execute()
-    vf_resp = supabase.table('visual_frames').select('id, video_id, timestamp, visual_description, emotion, ocr_text, tags, genres, actors, series_movie, custom_tags, emotion_tags, laugh_tags, contextual_tags, character_tags, semantic_tags, visual_embedding').limit(500).execute()
+    vf_resp = supabase.table('visual_frames').select('id, video_id, timestamp, visual_description, emotion, ocr_text, tags, genres, actors, series_movie, emotion_tags, laugh_tags, contextual_tags, character_tags, semantic_tags, visual_embedding').limit(500).execute()
 
     for clip in clips_resp.data:
         emb = clip.get('embedding')
