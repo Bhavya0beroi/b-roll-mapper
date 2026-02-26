@@ -350,6 +350,12 @@
         const resultCount = document.getElementById('resultCount');
         const noResultsState = document.getElementById('noResultsState');
         const librarySection = document.getElementById('librarySection');
+        
+        // Category and filter state variables (must be declared early!)
+        let currentLibraryCategory = 'Videos'; // default
+        let allLibraryVideos = [];
+        let currentResultsFilter = 'visual'; // default to visual
+        let allSearchResults = []; // Store all results
 
         // Theme toggle functionality
         const themeToggle = document.getElementById('themeToggle');
@@ -1610,8 +1616,6 @@
         // Audio/Visual Toggle
         const toggleVisual = document.getElementById('toggleVisual');
         const toggleAudio = document.getElementById('toggleAudio');
-        let currentResultsFilter = 'visual'; // default to visual
-        let allSearchResults = []; // Store all results
         
         toggleVisual.addEventListener('click', () => {
             currentResultsFilter = 'visual';
@@ -1637,9 +1641,6 @@
         }
         
         // Category filtering in Library
-        let currentLibraryCategory = 'Videos'; // default
-        let allLibraryVideos = [];
-        
         function filterLibraryByCategory(category) {
             currentLibraryCategory = category;
             
