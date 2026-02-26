@@ -256,58 +256,58 @@ def analyze_frame_with_vision(frame_path, transcript_context='', filename_hint='
 CONTEXT CLUES PROVIDED:
 {context_info}
 
-CRITICAL: READ THE FILENAME CAREFULLY!
+CRITICAL CHARACTER IDENTIFICATION RULES:
+- ONLY use character/actor names if they appear in the filename OR transcript
 - If filename contains "Aamir_Khan" or "Aamir Khan" → AAMIR KHAN (plays Rancho in 3 Idiots)
-- If filename contains "Kamyab_Nahi_Kabil" or "Kamyab Nahi Kabil" → 3 IDIOTS movie (famous dialogue)
-- If filename contains "3_Idiots" or "3 Idiots" → 3 IDIOTS movie (Rancho/Aamir Khan, Farhan/R. Madhavan, Raju/Sharman Joshi)
-- If filename contains "Farzi" → FARZI series (Sunny/Shahid Kapoor, Firoz/Bhuvan Arora)
-- If filename contains "Scam_1992" or "Scam 1992" → SCAM 1992 series (Harshad Mehta/Pratik Gandhi)
-- If filename contains "Shahid_Kapoor" or "Shahid Kapoor" → SHAHID KAPOOR (plays Sunny in Farzi)
-- If filename contains "R_Madhavan" or "Madhavan" → R. MADHAVAN (plays Farhan in 3 Idiots)
-- If filename contains "Highway" → HIGHWAY movie (Alia Bhatt, Randeep Hooda)
-- If filename contains "Dil_Chahta_Hai" → DIL CHAHTA HAI movie
-- If filename contains "Zindagi_Na_Milegi_Dobara" or "ZNMD" → ZNMD movie
+- If filename contains "3_Idiots" or "3 Idiots" → 3 IDIOTS movie (characters: Rancho, Farhan, Raju)
+- If filename contains "Farzi" → FARZI series (characters: Sunny, Firoz)
+- If filename contains "Scam_1992" → SCAM 1992 series (character: Harshad Mehta)
 - If transcript mentions character names → USE THOSE EXACT NAMES
-- ALWAYS use character names from filename/transcript, NOT generic descriptions
+- If NO character name in filename/transcript → Use descriptive terms: "young man", "woman", "father", "student", "businessman" based on visible context
+- NEVER invent or guess character names - use generic descriptors if unknown
 
 STEP-BY-STEP VISUAL ANALYSIS:
-1. LOOK CAREFULLY AT THE PEOPLE: How many? Gender? Ages? What are they DOING? Facial expressions?
-2. LOOK FOR CONTEXT CLUES: Setting, objects, clothing, lighting
-3. UNDERSTAND THE RELATIONSHIP & SCENE TYPE
-4. IDENTIFY MOVIE/SERIES & CHARACTERS from filename first, then transcript
+1. CAMERA ANGLE & COMPOSITION: Identify the shot type (close-up, medium shot, wide shot, aerial view, top-down view, low angle, high angle, dutch angle, over-the-shoulder, POV, tracking shot)
+2. PEOPLE: How many? Gender? Approximate age? What are they DOING? Facial expressions? Body language?
+3. SETTING: Indoor/outdoor? Time of day? Lighting? Objects? Environment details?
+4. EMOTIONAL STATE: What complex emotions are visible? (e.g., "under pressure", "in a mental loop", "experiencing cognitive dissonance", "feeling trapped", "overwhelmed by expectations")
+5. IDENTIFY MOVIE/SERIES from filename/transcript only
 
-GENERATE DETAILED TAGS:
+GENERATE COMPREHENSIVE TAGS:
 
-Visual Description (2-3 detailed sentences):
-- WHO (use names from filename/transcript) + WHAT specific action + WHERE
-- Facial expressions, emotions visible, body language
-- Camera angle, lighting, setting atmosphere
-- BE SPECIFIC: "Aamir Khan as Rancho teaches students" NOT "man talking"
+Visual Description (3-4 detailed sentences):
+- CAMERA ANGLE FIRST: "Close-up shot of..." or "Aerial view of..." or "Wide angle shot showing..."
+- WHO (generic if unknown: "young man", "woman") + WHAT specific action + WHERE
+- Facial expressions, complex emotional states, body language
+- Lighting, color palette, setting atmosphere
 
-Scene Summary (2-3 sentences): Emotional/narrative significance
+Scene Summary (2-3 sentences): Deep emotional/narrative significance, psychological state
 
-Series/Movie: Name if you recognize it
-Characters: Names from filename/transcript
-Basic Emotion: sad/happy/laughing/crying/angry/surprised/fear/love/neutral
+Series/Movie: Name ONLY if in filename/transcript
+Characters: Names ONLY if in filename/transcript, otherwise use "young man", "woman", "father", etc.
+Basic Emotion: sad/happy/laughing/crying/angry/surprised/fear/love/neutral/contemplative/anxious
 
-Emotion Tags (20-30 specific emotions)
-Laugh Tags (CRITICAL - if ANY smiling/laughing - 10-15 types, empty [] if not)
-Contextual Tags (20-30 scene context + COMMON SEARCHABLE TAGS)
-Character Tags (15-25 - MANDATORY: Extract names from filename!)
-Semantic Tags (25-40 visible details - DESCRIBE EVERYTHING)
+Emotion Tags (30-50 tags - INCLUDE COMPOUND EMOTIONS):
+- Simple: happy, sad, angry, fear, joy, surprise
+- Complex: under pressure, feeling trapped, cognitive dissonance, mental loop, overwhelmed, suffocating, liberated, breakthrough moment, identity crisis, existential dread, competitive stress, academic pressure, social anxiety, imposter syndrome, burnout, etc.
+
+Laugh Tags (if ANY smiling/laughing - 10-15 types, empty [] if not)
+Contextual Tags (25-35 tags: genre, setting, mood, time-of-day, lighting-type, relationship dynamics, scene purpose)
+Character Tags (10-20 tags: ONLY use names from filename/transcript, otherwise "young man with glasses", "woman in business attire", etc.)
+Semantic Tags (35-50 visible details: camera angle, camera movement, objects, clothing, actions, setting, lighting, colors, composition, framing)
 
 Return ONLY valid JSON:
 {{
-  "visual_description": "2-3 detailed sentences: WHO + WHAT action + WHERE + facial expressions + body language + camera/lighting",
-  "scene_summary": "2-3 sentences about emotional/narrative significance",
-  "series_movie": "EXACT movie/series name from filename",
-  "characters": "Character names from filename/transcript",
-  "basic_emotion": "sad/happy/laughing/crying/angry/surprised/fear/love/neutral",
-  "emotion_tags": ["20-30 specific emotion tags based on scene type"],
+  "visual_description": "CAMERA ANGLE + 3-4 detailed sentences: shot type + WHO (generic if unknown) + WHAT action + WHERE + facial expressions + emotional state + lighting/atmosphere",
+  "scene_summary": "2-3 sentences about deep emotional/psychological significance",
+  "series_movie": "EXACT movie/series name from filename ONLY (empty string if not found)",
+  "characters": "Character names from filename/transcript ONLY, otherwise use 'young man', 'woman', 'father' etc.",
+  "basic_emotion": "sad/happy/laughing/crying/angry/surprised/fear/love/neutral/contemplative/anxious",
+  "emotion_tags": ["30-50 specific emotions INCLUDING compound emotions: 'under pressure', 'mental loop', 'feeling trapped', 'overwhelmed by expectations', etc."],
   "laugh_tags": ["10-15 laugh types if laughing, empty [] if not"],
-  "contextual_tags": ["20-30 scene context: genre, setting, mood, relationships"],
-  "character_tags": ["15-25 COMPREHENSIVE tags: actor names from filename, character names, relationships, roles"],
-  "semantic_tags": ["25-40 visible details: actions, clothing, objects, setting, lighting, atmosphere, camera angle"]
+  "contextual_tags": ["25-35 scene context: genre, setting, mood, lighting, relationships, scene purpose"],
+  "character_tags": ["10-20 tags: ONLY names from filename/transcript, or descriptive terms like 'young man with glasses', 'woman in suit'"],
+  "semantic_tags": ["35-50 visible details: CAMERA ANGLE/MOVEMENT + objects + clothing + actions + setting + lighting + colors + composition"]
 }}
 
 Return ONLY JSON, no other text."""
@@ -481,9 +481,9 @@ def upload_to_supabase_storage(local_path, remote_path, content_type=None):
     return f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{remote_path}"
 
 
-def process_video(video_path, filename):
+def process_video(video_path, filename, category='Videos'):
     """Process video: upload to Supabase, transcribe, create embeddings, visual analysis."""
-    print(f"\n{'='*60}\n🎬 PROCESSING VIDEO: {filename}\n{'='*60}")
+    print(f"\n{'='*60}\n🎬 PROCESSING VIDEO: {filename} (Category: {category})\n{'='*60}")
 
     video_duration = get_video_duration(video_path)
     print(f"⏱️  Video duration: {video_duration:.2f}s")
@@ -516,7 +516,8 @@ def process_video(video_path, filename):
         'status': 'processing',
         'thumbnail': thumbnail_filename,
         'custom_tags': '',
-        'supabase_video_url': video_url
+        'supabase_video_url': video_url,
+        'category': category
     }
     result = supabase.table('videos').insert(video_data).execute()
     video_id = result.data[0]['id']
@@ -704,14 +705,18 @@ def process_video_endpoint(video_id):
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """
-    Quick upload endpoint - uploads video to Supabase Storage immediately,
-    returns success, then processes in background
+    Upload endpoint - uploads video to Supabase Storage and processes with AI
     """
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
+    
+    # Get category from form data (default to 'Videos' if not provided)
+    category = request.form.get('category', 'Videos')
+    if category not in ['Videos', 'GIFs', 'PS']:
+        category = 'Videos'
 
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
@@ -731,8 +736,8 @@ def upload_file():
 
         try:
             # Process video with full AI analysis
-            print(f"🎬 Processing video: {filename}")
-            process_video(tmp_path, filename)
+            print(f"🎬 Processing video: {filename} (Category: {category})")
+            process_video(tmp_path, filename, category)
             
             # Clean up temp file
             if os.path.exists(tmp_path):
@@ -754,7 +759,7 @@ def upload_file():
     return jsonify({'error': 'Invalid file type'}), 400
 
 
-def _run_search(query, query_embedding, emotions_filter, genres_filter):
+def _run_search(query, query_embedding, emotions_filter, genres_filter, categories_filter=None):
     """Core search logic - fetches from Supabase and computes similarity."""
     results = []
     detected_series = None
@@ -781,9 +786,18 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter):
     if not query and not emotions_filter and not genres_filter:
         return []
 
-    v_resp = supabase.table('videos').select('id, filename, custom_tags').execute()
+    # Fetch videos with category filtering
+    if categories_filter and len(categories_filter) > 0:
+        v_query = supabase.table('videos').select('id, filename, custom_tags, category').in_('category', categories_filter)
+    else:
+        v_query = supabase.table('videos').select('id, filename, custom_tags, category')
+    
+    v_resp = v_query.execute()
     v_map = {v['id']: v for v in v_resp.data}
     v_tags = {v['id']: v.get('custom_tags') or '' for v in v_resp.data}
+    
+    # Create set of allowed video IDs for category filtering
+    allowed_video_ids = set(v_map.keys()) if categories_filter else None
 
     if not query and (emotions_filter or genres_filter):
         vf_resp = supabase.table('visual_frames').select('id, video_id, timestamp, visual_description, emotion, ocr_text, tags, genres, deep_emotions, scene_context, people_description, environment, series_movie, actors, emotion_tags, laugh_tags, contextual_tags, character_tags, semantic_tags').execute()
@@ -826,6 +840,10 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter):
     vf_resp = supabase.table('visual_frames').select('id, video_id, timestamp, visual_description, emotion, ocr_text, tags, genres, actors, series_movie, emotion_tags, laugh_tags, contextual_tags, character_tags, semantic_tags, visual_embedding').limit(500).execute()
 
     for clip in clips_resp.data:
+        # Skip if category filter is active and this video's category doesn't match
+        if allowed_video_ids is not None and clip['video_id'] not in allowed_video_ids:
+            continue
+            
         emb = clip.get('embedding')
         if not emb:
             continue
@@ -838,6 +856,7 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter):
             if text.strip() in ['♪', '♪♪', '[Music]', '(Music)'] and 'music' not in query.lower():
                 continue
             clip_fname = clip.get('filename') or (v_map.get(clip['video_id']) or {}).get('filename', '')
+            video_category = (v_map.get(clip['video_id']) or {}).get('category', 'Videos')
             results.append({
                 'id': f"audio_{clip['id']}",
                 'video_id': clip['video_id'],
@@ -848,10 +867,15 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter):
                 'duration': clip.get('duration', clip['end_time'] - clip['start_time']),
                 'text': text,
                 'similarity': float(sim),
-                'source': 'audio'
+                'source': 'audio',
+                'category': video_category
             })
 
     for vf in vf_resp.data:
+        # Skip if category filter is active and this video's category doesn't match
+        if allowed_video_ids is not None and vf['video_id'] not in allowed_video_ids:
+            continue
+            
         emb = vf.get('visual_embedding')
         if not emb:
             continue
@@ -901,6 +925,7 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter):
             if ocr_text:
                 display += f" | Text: \"{ocr_text}\""
             vf_fname = vf.get('filename') or (v_map.get(vf['video_id']) or {}).get('filename', '')
+            video_category = (v_map.get(vf['video_id']) or {}).get('category', 'Videos')
             results.append({
                 'id': f"visual_{vf['id']}",
                 'video_id': vf['video_id'],
@@ -921,7 +946,8 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter):
                 'laugh_tags': laugh_tags or '',
                 'contextual_tags': contextual_tags or '',
                 'character_tags': character_tags or '',
-                'semantic_tags': semantic_tags or ''
+                'semantic_tags': semantic_tags or '',
+                'category': video_category
             })
 
     if emotions_filter or genres_filter:
@@ -948,6 +974,7 @@ def search():
     query = data.get('query', '').strip()
     emotions_filter = data.get('emotions', [])
     genres_filter = data.get('genres', [])
+    categories_filter = data.get('categories', [])
 
     if not query and not emotions_filter and not genres_filter:
         return jsonify({'results': []})
@@ -957,7 +984,7 @@ def search():
         if query:
             query_embedding = create_embedding(query)
 
-        results = _run_search(query, query_embedding, emotions_filter, genres_filter)
+        results = _run_search(query, query_embedding, emotions_filter, genres_filter, categories_filter)
 
         if not results and query:
             return jsonify({
@@ -996,7 +1023,7 @@ def serve_thumbnail(filename):
 @app.route('/videos', methods=['GET'])
 def list_videos():
     try:
-        v_resp = supabase.table('videos').select('id, filename, title, upload_date, duration, status, thumbnail, custom_tags, supabase_video_url').order('upload_date', desc=True).execute()
+        v_resp = supabase.table('videos').select('id, filename, title, upload_date, duration, status, thumbnail, custom_tags, supabase_video_url, category').order('upload_date', desc=True).execute()
         c_resp = supabase.table('clips').select('video_id').execute()
         clip_counts = {}
         for c in c_resp.data:
@@ -1015,7 +1042,8 @@ def list_videos():
                 'thumbnail': v.get('thumbnail'),
                 'custom_tags': v.get('custom_tags') or '',
                 'clip_count': clip_counts.get(v['id'], 0),
-                'supabase_video_url': v.get('supabase_video_url')
+                'supabase_video_url': v.get('supabase_video_url'),
+                'category': v.get('category', 'Videos')
             })
         
         # Add cache-busting headers

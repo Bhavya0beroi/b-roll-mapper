@@ -226,7 +226,18 @@
         <section id="resultsSection" class="hidden mb-8">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">🎯 Search Results</h2>
-                <span id="resultCount" class="text-sm text-gray-600 dark:text-gray-400"></span>
+                <div class="flex items-center gap-4">
+                    <!-- Audio/Visual Toggle -->
+                    <div class="flex gap-1 bg-gray-200 dark:bg-gray-700 p-1 rounded-lg">
+                        <button id="toggleVisual" class="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-blue-500 text-white">
+                            👁️ Visual
+                        </button>
+                        <button id="toggleAudio" class="px-4 py-2 rounded-md text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
+                            🎙️ Audio
+                        </button>
+                    </div>
+                    <span id="resultCount" class="text-sm text-gray-600 dark:text-gray-400"></span>
+                </div>
             </div>
             <div id="resultsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Results will be inserted here -->
@@ -245,7 +256,21 @@
         <!-- Video Library Section -->
         <section class="mb-8" id="librarySection">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">📚 Video Library</h2>
+                <div>
+                    <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-3">📚 Video Library</h2>
+                    <!-- Category Pills -->
+                    <div class="flex gap-2">
+                        <button id="catVideos" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-colors bg-blue-500 text-white" onclick="filterLibraryByCategory('Videos')">
+                            🎬 Videos
+                        </button>
+                        <button id="catGIFs" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600" onclick="filterLibraryByCategory('GIFs')">
+                            🖼️ GIFs
+                        </button>
+                        <button id="catPS" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600" onclick="filterLibraryByCategory('PS')">
+                            🎥 PS
+                        </button>
+                    </div>
+                </div>
                 <button id="refreshLibrary" class="text-blue-500 hover:text-blue-400 text-sm flex items-center gap-2">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -288,8 +313,8 @@
                     </div>
                 </div>
                 <img id="gifPlayer" class="w-full rounded-lg mb-4 hidden" alt="GIF player">
-                <div class="bg-dark-bg rounded p-4">
-                    <p class="text-sm text-gray-400 mb-2">Transcript:</p>
+                <div class="bg-dark-bg rounded p-4 max-h-96 overflow-y-auto">
+                    <p class="text-sm text-gray-400 mb-2 sticky top-0 bg-dark-bg pb-2">Transcript:</p>
                     <p id="clipTranscript" class="text-gray-200"></p>
                     <div class="mt-3 flex items-center text-sm text-gray-500">
                         <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -356,26 +381,31 @@
         // Load video library on page load
         loadLibrary();
 
-        // Upload zone interactions
-        uploadZone.addEventListener('click', () => fileInput.click());
-        
+        // Upload zone interactions - show category modal first
+        uploadZone.addEventListener('click', () => {
+            // Trigger file selection but capture in a temp variable
+            fileInput.click();
+        });
+
         uploadZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadZone.classList.add('drag-over');
         });
-        
+
         uploadZone.addEventListener('dragleave', () => {
             uploadZone.classList.remove('drag-over');
         });
-        
+
         uploadZone.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadZone.classList.remove('drag-over');
-            handleFiles(e.dataTransfer.files);
+            showCategoryModal(e.dataTransfer.files);
         });
-        
+
         fileInput.addEventListener('change', (e) => {
-            handleFiles(e.target.files);
+            if (e.target.files.length > 0) {
+                showCategoryModal(e.target.files);
+            }
         });
 
         refreshLibrary.addEventListener('click', loadLibrary);
@@ -402,23 +432,24 @@
         });
 
         // File upload handler
-        async function handleFiles(files) {
+        async function handleFilesWithCategory(files, category) {
             if (files.length === 0) return;
-            
+
             uploadProgress.classList.remove('hidden');
-            
+
             const totalFiles = files.length;
             let completed = 0;
-            
+
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 currentFile.textContent = `Processing: ${file.name} (Transcribing + Creating embeddings...)`;
-                
+
                 const formData = new FormData();
                 formData.append('file', file);
-                
+                formData.append('category', category);
+
                 try {
-                    console.log(`📤 Uploading: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+                    console.log(`📤 Uploading: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB) to category: ${category}`);
                     const response = await fetch(`${API_BASE}/upload`, {
                         method: 'POST',
                         body: formData
@@ -469,8 +500,11 @@
                 const response = await fetch(`${API_BASE}/videos`);
                 const data = await response.json();
                 
+                // Store all videos for category filtering
+                allLibraryVideos = data.videos;
+
                 libraryGrid.innerHTML = '';
-                
+
                 if (data.videos.length === 0) {
                     // Only show empty state if not searching
                     if (!searchInput.value.trim()) {
@@ -479,28 +513,41 @@
                     }
                     return;
                 }
-                
+
                 emptyState.classList.add('hidden');
                 // Only show library if not actively searching
                 if (!searchInput.value.trim()) {
                     librarySection.classList.remove('hidden');
                 }
+
+                // Filter by current category
+                const filtered = data.videos.filter(v => v.category === currentLibraryCategory);
                 
-                data.videos.forEach(video => {
-                    const card = document.createElement('div');
-                    card.className = 'bg-white dark:bg-dark-card border dark:border-gray-700 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer';
-                    
-                    // Make card clickable to play first clip
-                    card.onclick = () => playVideoFromLibrary(video);
-                    
-                    const statusIcon = video.status === 'complete' ? '✅' : 
-                                     video.status === 'processing' ? '⏳' : '❌';
-                    const statusColor = video.status === 'complete' ? 'text-green-500' : 
-                                      video.status === 'processing' ? 'text-yellow-500 pulse-animation' : 'text-red-500';
-                    
-                    const thumbnailUrl = video.thumbnail ? `${API_BASE}/thumbnails/${video.thumbnail}` : '';
-                    
-                    card.innerHTML = `
+                filtered.forEach(video => {
+                    const card = createVideoCard(video);
+                    libraryGrid.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading library:', error);
+            }
+        }
+        
+        // Create video card element
+        function createVideoCard(video) {
+            const card = document.createElement('div');
+            card.className = 'bg-white dark:bg-dark-card border dark:border-gray-700 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer';
+
+            // Make card clickable to play first clip
+            card.onclick = () => playVideoFromLibrary(video);
+            
+            const statusIcon = video.status === 'complete' ? '✅' : 
+                             video.status === 'processing' ? '⏳' : '❌';
+            const statusColor = video.status === 'complete' ? 'text-green-500' : 
+                              video.status === 'processing' ? 'text-yellow-500 pulse-animation' : 'text-red-500';
+            
+            const thumbnailUrl = video.thumbnail ? `${API_BASE}/thumbnails/${video.thumbnail}` : '';
+            
+            card.innerHTML = `
                         <div class="relative group">
                             ${video.thumbnail ? `
                                 <img src="${thumbnailUrl}" alt="${video.filename}" class="w-full h-32 object-cover">
@@ -555,8 +602,8 @@
                         </div>
                     `;
                     
-                    libraryGrid.appendChild(card);
-                });
+                    return card;
+                }
             } catch (error) {
                 console.error('Error loading library:', error);
             }
@@ -641,6 +688,7 @@
                 console.log(`🔍 Search #${currentRequestId}:`, query);
                 console.log('🎭 Emotion filters:', Array.from(selectedEmotions));
                 console.log('🎬 Genre filters:', Array.from(selectedGenres));
+                console.log('📁 Category filter:', currentLibraryCategory);
 
                 // Show loading state
                 resultsSection.classList.remove('hidden');
@@ -654,7 +702,8 @@
                     body: JSON.stringify({
                         query,
                         emotions: Array.from(selectedEmotions),
-                        genres: Array.from(selectedGenres)
+                        genres: Array.from(selectedGenres),
+                        categories: [currentLibraryCategory]
                     }),
                     signal: searchAbortController.signal
                 });
@@ -686,19 +735,30 @@
             }
         }
 
-        function displayResults(results, query) {
+        function displayResults(results, query, storeResults = true) {
             console.log('🎨 Displaying results:', results.length, 'items for query:', query);
-            resultsGrid.innerHTML = '';
             
-            // If no results, show empty state
-            if (!results || results.length === 0) {
+            // Store all results for audio/visual toggling
+            if (storeResults) {
+                allSearchResults = results;
+            }
+            
+            // Filter by current toggle (visual/audio)
+            const filtered = results.filter(r => r.source === currentResultsFilter);
+            console.log(`🔄 Filtered to ${currentResultsFilter}:`, filtered.length, 'items');
+            
+            resultsGrid.innerHTML = '';
+
+            // If no results after filtering, show empty state
+            if (!filtered || filtered.length === 0) {
                 console.log('⚠️ No results to display');
                 resultsSection.classList.add('hidden');
                 noResultsState.classList.remove('hidden');
-                // Update empty state text if server provided message
+                // Update empty state text
                 const emptyStateText = noResultsState.querySelector('p');
                 if (emptyStateText) {
-                    emptyStateText.textContent = `No relevant B-rolls found for "${query}". Try different keywords or upload more videos.`;
+                    const filterType = currentResultsFilter === 'visual' ? 'Visual' : 'Audio';
+                    emptyStateText.textContent = `No ${filterType} results found for "${query}". Try the other filter or different keywords.`;
                 }
                 return;
             }
@@ -707,9 +767,11 @@
             console.log('✅ Showing results section');
             noResultsState.classList.add('hidden');
             resultsSection.classList.remove('hidden');
-            resultCount.textContent = `${results.length} result${results.length === 1 ? '' : 's'} for "${query}"`;
+            const totalCount = allSearchResults.length;
+            const filterType = currentResultsFilter === 'visual' ? 'Visual' : 'Audio';
+            resultCount.textContent = `${filtered.length} ${filterType} result${filtered.length === 1 ? '' : 's'} (${totalCount} total) for "${query}"`;
 
-            results.forEach((result, index) => {
+            filtered.forEach((result, index) => {
                 console.log(`  📌 Result ${index + 1}:`, result.filename, 'similarity:', result.similarity);
                 const card = document.createElement('div');
                 card.className = 'video-card bg-white dark:bg-dark-card border dark:border-gray-700 rounded-lg overflow-hidden cursor-pointer';
@@ -1497,6 +1559,170 @@
                 filterPanel.classList.add('hidden');
             }
         });
+        
+        // Category Upload Modal
+        const categoryModal = document.getElementById('categoryModal');
+        const categoryVideosBtn = document.getElementById('categoryVideosBtn');
+        const categoryGIFsBtn = document.getElementById('categoryGIFsBtn');
+        const categoryPSBtn = document.getElementById('categoryPSBtn');
+        const closeCategoryModal = document.getElementById('closeCategoryModal');
+        let selectedCategory = null;
+        let pendingFiles = null;
+        
+        function showCategoryModal(files) {
+            pendingFiles = files;
+            selectedCategory = null;
+            categoryModal.classList.remove('hidden');
+            // Reset button styles
+            [categoryVideosBtn, categoryGIFsBtn, categoryPSBtn].forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+                btn.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+            });
+        }
+        
+        function selectCategory(category, button) {
+            selectedCategory = category;
+            // Update button styles
+            [categoryVideosBtn, categoryGIFsBtn, categoryPSBtn].forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+                btn.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+            });
+            button.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+            button.classList.add('bg-blue-500', 'text-white');
+        }
+        
+        function proceedWithUpload() {
+            if (!selectedCategory) {
+                alert('Please select a category before uploading');
+                return;
+            }
+            categoryModal.classList.add('hidden');
+            if (pendingFiles) {
+                handleFilesWithCategory(pendingFiles, selectedCategory);
+                pendingFiles = null;
+                selectedCategory = null;
+            }
+        }
+        
+        closeCategoryModal.addEventListener('click', () => {
+            categoryModal.classList.add('hidden');
+            pendingFiles = null;
+            selectedCategory = null;
+        });
+        
+        categoryVideosBtn.addEventListener('click', () => selectCategory('Videos', categoryVideosBtn));
+        categoryGIFsBtn.addEventListener('click', () => selectCategory('GIFs', categoryGIFsBtn));
+        categoryPSBtn.addEventListener('click', () => selectCategory('PS', categoryPSBtn));
+        
+        // Audio/Visual Toggle
+        const toggleVisual = document.getElementById('toggleVisual');
+        const toggleAudio = document.getElementById('toggleAudio');
+        let currentResultsFilter = 'visual'; // default to visual
+        let allSearchResults = []; // Store all results
+        
+        toggleVisual.addEventListener('click', () => {
+            currentResultsFilter = 'visual';
+            toggleVisual.classList.add('bg-blue-500', 'text-white');
+            toggleVisual.classList.remove('text-gray-700', 'dark:text-gray-300', 'hover:bg-gray-300', 'dark:hover:bg-gray-600');
+            toggleAudio.classList.remove('bg-blue-500', 'text-white');
+            toggleAudio.classList.add('text-gray-700', 'dark:text-gray-300', 'hover:bg-gray-300', 'dark:hover:bg-gray-600');
+            filterAndDisplayResults();
+        });
+        
+        toggleAudio.addEventListener('click', () => {
+            currentResultsFilter = 'audio';
+            toggleAudio.classList.add('bg-blue-500', 'text-white');
+            toggleAudio.classList.remove('text-gray-700', 'dark:text-gray-300', 'hover:bg-gray-300', 'dark:hover:bg-gray-600');
+            toggleVisual.classList.remove('bg-blue-500', 'text-white');
+            toggleVisual.classList.add('text-gray-700', 'dark:text-gray-300', 'hover:bg-gray-300', 'dark:hover:bg-gray-600');
+            filterAndDisplayResults();
+        });
+        
+        function filterAndDisplayResults() {
+            const filtered = allSearchResults.filter(r => r.source === currentResultsFilter);
+            displayResults(filtered, searchInput.value.trim(), false); // false = don't store again
+        }
+        
+        // Category filtering in Library
+        let currentLibraryCategory = 'Videos'; // default
+        let allLibraryVideos = [];
+        
+        function filterLibraryByCategory(category) {
+            currentLibraryCategory = category;
+            
+            // Update pill styles
+            document.querySelectorAll('.category-pill').forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+                btn.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+            });
+            
+            const activeBtn = category === 'Videos' ? document.getElementById('catVideos') :
+                             category === 'GIFs' ? document.getElementById('catGIFs') :
+                             document.getElementById('catPS');
+            activeBtn.classList.add('bg-blue-500', 'text-white');
+            activeBtn.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+            
+            // Filter and display
+            const filtered = allLibraryVideos.filter(v => v.category === category);
+            displayLibraryVideos(filtered);
+        }
+        
+        function displayLibraryVideos(videos) {
+            libraryGrid.innerHTML = '';
+            if (videos.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+            
+            videos.forEach(video => {
+                const card = createVideoCard(video);
+                libraryGrid.appendChild(card);
+            });
+        }
     </script>
+    
+    <!-- Category Selection Modal -->
+    <div id="categoryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
+            <h3 class="text-2xl font-semibold text-gray-900 dark:text-white mb-6">Select Category</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">Choose a category for your upload:</p>
+            
+            <div class="space-y-3 mb-6">
+                <button id="categoryVideosBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center gap-3">
+                    <span class="text-2xl">🎬</span>
+                    <div>
+                        <div class="font-semibold">Videos</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Movies, scenes, and video content</div>
+                    </div>
+                </button>
+                
+                <button id="categoryGIFsBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center gap-3">
+                    <span class="text-2xl">🖼️</span>
+                    <div>
+                        <div class="font-semibold">GIFs</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Animated GIFs and short loops</div>
+                    </div>
+                </button>
+                
+                <button id="categoryPSBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center gap-3">
+                    <span class="text-2xl">🎥</span>
+                    <div>
+                        <div class="font-semibold">PS (Prateek Singh)</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Content from Prateek Singh</div>
+                    </div>
+                </button>
+            </div>
+            
+            <div class="flex gap-3">
+                <button id="closeCategoryModal" class="flex-1 px-6 py-3 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors">
+                    Cancel
+                </button>
+                <button onclick="proceedWithUpload()" class="flex-1 px-6 py-3 rounded-lg bg-blue-500 text-white hover:bg-blue-600 font-medium transition-colors">
+                    Upload
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
