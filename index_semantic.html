@@ -188,6 +188,17 @@
                     <button onclick="clearFilters()" class="text-sm text-blue-500 hover:text-blue-600">Clear All</button>
                 </div>
                 
+                <!-- Category Filter -->
+                <div class="mb-6">
+                    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Category</h4>
+                    <select id="searchCategoryFilter" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500">
+                        <option value="all">All Categories</option>
+                        <option value="Videos">🎬 Videos</option>
+                        <option value="GIFs">🖼️ GIFs</option>
+                        <option value="PS">🧍 PS (Prateek Singh)</option>
+                    </select>
+                </div>
+                
                 <!-- Emotions Filter -->
                 <div class="mb-6">
                     <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Emotions</h4>
@@ -264,7 +275,7 @@
                             🖼️ GIFs
                         </button>
                         <button id="catPS" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600" onclick="filterLibraryByCategory('PS')">
-                            PS
+                            🧍 PS
                         </button>
                     </div>
                 </div>
@@ -684,10 +695,15 @@
                 // Create new abort controller for this search
                 searchAbortController = new AbortController();
                 
+                // Get category filter from dropdown
+                const searchCategoryFilter = document.getElementById('searchCategoryFilter');
+                const selectedCategory = searchCategoryFilter ? searchCategoryFilter.value : 'all';
+                const categoriesArray = selectedCategory === 'all' ? [] : [selectedCategory];
+                
                 console.log(`🔍 Search #${currentRequestId}:`, query);
                 console.log('🎭 Emotion filters:', Array.from(selectedEmotions));
                 console.log('🎬 Genre filters:', Array.from(selectedGenres));
-                console.log('📁 Category filter:', currentLibraryCategory);
+                console.log('📁 Category filter:', selectedCategory);
 
                 // Show loading state
                 resultsSection.classList.remove('hidden');
@@ -702,7 +718,7 @@
                         query,
                         emotions: Array.from(selectedEmotions),
                         genres: Array.from(selectedGenres),
-                        categories: [currentLibraryCategory]
+                        categories: categoriesArray
                     }),
                     signal: searchAbortController.signal
                 });
@@ -1700,7 +1716,7 @@
                 </button>
                 
                 <button id="categoryPSBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
-                    <div class="font-semibold">PS (Prateek Singh)</div>
+                    <div class="font-semibold">🧍 PS (Prateek Singh)</div>
                     <div class="text-sm text-gray-500 dark:text-gray-400">Content from Prateek Singh</div>
                 </button>
             </div>
