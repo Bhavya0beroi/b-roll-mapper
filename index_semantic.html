@@ -841,14 +841,25 @@
                 allSearchResults = results;
             }
             
+            // Get current category filter
+            const searchCategoryFilter = document.getElementById('searchCategoryFilter');
+            const selectedCategory = searchCategoryFilter ? searchCategoryFilter.value : 'all';
+            
+            // Filter by category first
+            let categoryFiltered = results;
+            if (selectedCategory !== 'all') {
+                categoryFiltered = results.filter(r => r.category === selectedCategory);
+                console.log(`📁 Filtered by category "${selectedCategory}":`, categoryFiltered.length, 'items');
+            }
+            
             // Filter by current toggle (visual/audio)
-            let filtered = results.filter(r => r.source === currentResultsFilter);
+            let filtered = categoryFiltered.filter(r => r.source === currentResultsFilter);
             console.log(`🔄 Filtered to ${currentResultsFilter}:`, filtered.length, 'items');
             
             // Apply rating boost to sort results
             filtered = filtered.map(r => {
                 const rating = clipRatings[r.id] || 0;
-                const ratingBoost = rating * 0.05; // Each star adds 0.05 to similarity
+                const ratingBoost = rating * 0.05;
                 return { ...r, originalSimilarity: r.similarity, similarity: r.similarity + ratingBoost, userRating: rating };
             }).sort((a, b) => b.similarity - a.similarity);
             
@@ -866,7 +877,8 @@
                 const emptyStateText = noResultsState.querySelector('p');
                 if (emptyStateText) {
                     const filterType = currentResultsFilter === 'visual' ? 'Visual' : 'Audio';
-                    emptyStateText.textContent = `No ${filterType} results found for "${query}". Try the other filter or different keywords.`;
+                    const categoryText = selectedCategory !== 'all' ? ` in ${selectedCategory} category` : '';
+                    emptyStateText.textContent = `No ${filterType} results found for "${query}"${categoryText}. Try different filters or keywords.`;
                 }
                 return;
             }
