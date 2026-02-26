@@ -786,18 +786,23 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter, categori
     if not query and not emotions_filter and not genres_filter:
         return []
 
-    # Fetch videos with category filtering
-    if categories_filter and len(categories_filter) > 0:
-        v_query = supabase.table('videos').select('id, filename, custom_tags, category').in_('category', categories_filter)
-    else:
-        v_query = supabase.table('videos').select('id, filename, custom_tags, category')
+    # Fetch videos with category filtering (handle missing category column)
+    try:
+        if categories_filter and len(categories_filter) > 0:
+            v_query = supabase.table('videos').select('id, filename, custom_tags, category').in_('category', categories_filter)
+        else:
+            v_query = supabase.table('videos').select('id, filename, custom_tags, category')
+        v_resp = v_query.execute()
+    except Exception as e:
+        # If category column doesn't exist, fetch without it
+        print(f"⚠️ Category column not found in search, fetching all videos: {e}")
+        v_resp = supabase.table('videos').select('id, filename, custom_tags').execute()
     
-    v_resp = v_query.execute()
     v_map = {v['id']: v for v in v_resp.data}
     v_tags = {v['id']: v.get('custom_tags') or '' for v in v_resp.data}
     
-    # Create set of allowed video IDs for category filtering
-    allowed_video_ids = set(v_map.keys()) if categories_filter else None
+    # Create set of allowed video IDs for category filtering (skip if categories not supported)
+    allowed_video_ids = set(v_map.keys()) if (categories_filter and any('category' in v for v in v_resp.data)) else None
 
     if not query and (emotions_filter or genres_filter):
         vf_resp = supabase.table('visual_frames').select('id, video_id, timestamp, visual_description, emotion, ocr_text, tags, genres, deep_emotions, scene_context, people_description, environment, series_movie, actors, emotion_tags, laugh_tags, contextual_tags, character_tags, semantic_tags').execute()
@@ -1023,7 +1028,14 @@ def serve_thumbnail(filename):
 @app.route('/videos', methods=['GET'])
 def list_videos():
     try:
-        v_resp = supabase.table('videos').select('id, filename, title, upload_date, duration, status, thumbnail, custom_tags, supabase_video_url, category').order('upload_date', desc=True).execute()
+        # Try to fetch with category, fallback to without if column doesn't exist
+        try:
+            v_resp = supabase.table('videos').select('id, filename, title, upload_date, duration, status, thumbnail, custom_tags, supabase_video_url, category').order('upload_date', desc=True).execute()
+        except Exception as e:
+            # If category column doesn't exist, fetch without it
+            print(f"⚠️ Category column not found, fetching without it: {e}")
+            v_resp = supabase.table('videos').select('id, filename, title, upload_date, duration, status, thumbnail, custom_tags, supabase_video_url').order('upload_date', desc=True).execute()
+        
         c_resp = supabase.table('clips').select('video_id').execute()
         clip_counts = {}
         for c in c_resp.data:
