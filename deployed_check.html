@@ -188,17 +188,6 @@
                     <button onclick="clearFilters()" class="text-sm text-blue-500 hover:text-blue-600">Clear All</button>
                 </div>
                 
-                <!-- Category Filter -->
-                <div class="mb-6">
-                    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Category</h4>
-                    <select id="searchCategoryFilter" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500">
-                        <option value="all">All Categories</option>
-                        <option value="Videos">🎬 Videos</option>
-                        <option value="GIFs">🖼️ GIFs</option>
-                        <option value="PS">🧍 PS (Prateek Singh)</option>
-                    </select>
-                </div>
-                
                 <!-- Emotions Filter -->
                 <div class="mb-6">
                     <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Emotions</h4>
@@ -275,7 +264,7 @@
                             🖼️ GIFs
                         </button>
                         <button id="catPS" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600" onclick="filterLibraryByCategory('PS')">
-                            🧍 PS
+                            PS
                         </button>
                     </div>
                 </div>
@@ -302,72 +291,14 @@
 
         <!-- Video Player Modal -->
         <div id="videoModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50">
-            <div class="bg-dark-card rounded-lg p-6 max-w-4xl w-full mx-4 relative">
+            <div class="bg-dark-card rounded-lg p-6 max-w-4xl w-full mx-4">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-xl font-semibold" id="modalTitle">Video Player</h3>
-                    <div class="flex items-center gap-4">
-                        <!-- Star Rating Button -->
-                        <button id="starRatingBtn" class="text-gray-400 hover:text-yellow-400 transition-colors" title="Rate this clip">
-                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                            </svg>
-                        </button>
-                        <!-- Navigation Arrows -->
-                        <div class="flex gap-2">
-                            <button id="prevResult" class="text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Previous result">
-                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                                </svg>
-                            </button>
-                            <button id="nextResult" class="text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Next result">
-                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <button id="closeModal" class="text-gray-400 hover:text-white">
-                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Star Rating Panel (Hidden by default) -->
-                <div id="starRatingPanel" class="hidden mb-4 p-4 bg-gray-800 rounded-lg">
-                    <p class="text-sm text-gray-300 mb-3">Rate this clip:</p>
-                    <div class="flex items-center gap-3">
-                        <div class="flex gap-1" id="starButtons">
-                            <button onclick="setRating(1)" class="star-btn text-gray-500 hover:text-yellow-400 transition-colors">
-                                <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                            </button>
-                            <button onclick="setRating(2)" class="star-btn text-gray-500 hover:text-yellow-400 transition-colors">
-                                <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                            </button>
-                            <button onclick="setRating(3)" class="star-btn text-gray-500 hover:text-yellow-400 transition-colors">
-                                <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                            </button>
-                            <button onclick="setRating(4)" class="star-btn text-gray-500 hover:text-yellow-400 transition-colors">
-                                <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                            </button>
-                            <button onclick="setRating(5)" class="star-btn text-gray-500 hover:text-yellow-400 transition-colors">
-                                <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <button onclick="submitRating()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors">
-                            Submit
-                        </button>
-                    </div>
+                    <button id="closeModal" class="text-gray-400 hover:text-white">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
                 </div>
                 <div class="relative">
                     <video id="videoPlayer" class="w-full rounded-lg mb-4" controls preload="metadata"></video>
@@ -389,46 +320,6 @@
                         <span id="timeInfo">Clip window</span>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Category Selection Modal -->
-    <div id="categoryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
-            <h3 class="text-2xl font-semibold text-gray-900 dark:text-white mb-6">Select Category</h3>
-            <p class="text-gray-600 dark:text-gray-400 mb-6">Choose a category for your upload:</p>
-            
-            <div class="space-y-3 mb-6">
-                <button id="categoryVideosBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center gap-3">
-                    <span class="text-2xl">🎬</span>
-                    <div>
-                        <div class="font-semibold">Videos</div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400">Movies, scenes, and video content</div>
-                    </div>
-                </button>
-                
-                <button id="categoryGIFsBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center gap-3">
-                    <span class="text-2xl">🖼️</span>
-                    <div>
-                        <div class="font-semibold">GIFs</div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400">Animated GIFs and short loops</div>
-                    </div>
-                </button>
-                
-                <button id="categoryPSBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
-                    <div class="font-semibold">🧍 PS (Prateek Singh)</div>
-                    <div class="text-sm text-gray-500 dark:text-gray-400">Content from Prateek Singh</div>
-                </button>
-            </div>
-            
-            <div class="flex gap-3">
-                <button id="closeCategoryModal" class="flex-1 px-6 py-3 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors">
-                    Cancel
-                </button>
-                <button onclick="proceedWithUpload()" class="flex-1 px-6 py-3 rounded-lg bg-blue-500 text-white hover:bg-blue-600 font-medium transition-colors">
-                    Upload
-                </button>
             </div>
         </div>
     </div>
@@ -459,16 +350,6 @@
         const resultCount = document.getElementById('resultCount');
         const noResultsState = document.getElementById('noResultsState');
         const librarySection = document.getElementById('librarySection');
-        
-        // Category and filter state variables (must be declared early!)
-        let currentLibraryCategory = 'Videos'; // default
-        let allLibraryVideos = [];
-        let currentResultsFilter = 'visual'; // default to visual
-        let allSearchResults = []; // Store all results
-        let currentDisplayedResults = []; // Currently displayed filtered results
-        let currentResultIndex = -1; // Track which result is playing
-        let clipRatings = JSON.parse(localStorage.getItem('clipRatings') || '{}'); // {clipId: rating}
-        let selectedStars = 0;
 
         // Theme toggle functionality
         const themeToggle = document.getElementById('themeToggle');
@@ -613,12 +494,7 @@
         // Load video library
         async function loadLibrary() {
             try {
-                const response = await fetch(`${API_BASE}/videos?t=${Date.now()}`, {
-                    headers: {
-                        'Cache-Control': 'no-cache, no-store, must-revalidate',
-                        'Pragma': 'no-cache'
-                    }
-                });
+                const response = await fetch(`${API_BASE}/videos`);
                 const data = await response.json();
                 
                 // Store all videos for category filtering
@@ -802,32 +678,25 @@
                 // Create new abort controller for this search
                 searchAbortController = new AbortController();
                 
-                // Get category filter from dropdown
-                const searchCategoryFilter = document.getElementById('searchCategoryFilter');
-                const selectedCategory = searchCategoryFilter ? searchCategoryFilter.value : 'all';
-                const categoriesArray = selectedCategory === 'all' ? [] : [selectedCategory];
-                
                 console.log(`🔍 Search #${currentRequestId}:`, query);
                 console.log('🎭 Emotion filters:', Array.from(selectedEmotions));
                 console.log('🎬 Genre filters:', Array.from(selectedGenres));
-                console.log('📁 Category filter:', selectedCategory);
+                console.log('📁 Category filter:', currentLibraryCategory);
 
                 // Show loading state
                 resultsSection.classList.remove('hidden');
                 resultsGrid.innerHTML = '<div class="col-span-full text-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div><p class="text-gray-600 dark:text-gray-400">Searching...</p></div>';
 
-                const response = await fetch(`${API_BASE}/search?t=${Date.now()}`, {
+                const response = await fetch(`${API_BASE}/search`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Cache-Control': 'no-cache, no-store, must-revalidate',
-                        'Pragma': 'no-cache'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         query,
                         emotions: Array.from(selectedEmotions),
                         genres: Array.from(selectedGenres),
-                        categories: categoriesArray
+                        categories: [currentLibraryCategory]
                     }),
                     signal: searchAbortController.signal
                 });
@@ -868,18 +737,8 @@
             }
             
             // Filter by current toggle (visual/audio)
-            let filtered = results.filter(r => r.source === currentResultsFilter);
+            const filtered = results.filter(r => r.source === currentResultsFilter);
             console.log(`🔄 Filtered to ${currentResultsFilter}:`, filtered.length, 'items');
-            
-            // Apply rating boost to sort results
-            filtered = filtered.map(r => {
-                const rating = clipRatings[r.id] || 0;
-                const ratingBoost = rating * 0.05; // Each star adds 0.05 to similarity
-                return { ...r, originalSimilarity: r.similarity, similarity: r.similarity + ratingBoost, userRating: rating };
-            }).sort((a, b) => b.similarity - a.similarity);
-            
-            // Store for navigation
-            currentDisplayedResults = filtered;
             
             resultsGrid.innerHTML = '';
 
@@ -906,10 +765,10 @@
             resultCount.textContent = `${filtered.length} ${filterType} result${filtered.length === 1 ? '' : 's'} (${totalCount} total) for "${query}"`;
 
             filtered.forEach((result, index) => {
-                console.log(`  📌 Result ${index + 1}:`, result.filename, 'similarity:', result.similarity, 'rating:', result.userRating || 0);
+                console.log(`  📌 Result ${index + 1}:`, result.filename, 'similarity:', result.similarity);
                 const card = document.createElement('div');
                 card.className = 'video-card bg-white dark:bg-dark-card border dark:border-gray-700 rounded-lg overflow-hidden cursor-pointer';
-                card.onclick = () => playClip(result, index);
+                card.onclick = () => playClip(result);
                 
                 const similarityPercent = (result.similarity * 100).toFixed(1);
                 const matchColor = result.similarity > 0.7 ? 'text-green-500' : 
@@ -1327,9 +1186,8 @@
             }
         }
 
-        function playClip(result, resultIndex = -1) {
-            currentResultIndex = resultIndex;
-            const videoUrl = `${API_BASE}/uploads/${result.filename}?v=${Date.now()}`;
+        function playClip(result) {
+            const videoUrl = `${API_BASE}/uploads/${result.filename}`;
             const isGif = result.filename.toLowerCase().endsWith('.gif');
             const videoLoading = document.getElementById('videoLoading');
             
@@ -1367,35 +1225,8 @@
                 ? `Animated GIF • Duration: ${result.duration.toFixed(1)}s`
                 : `Playing from ${formatTime(result.start_time)} to ${formatTime(result.end_time)} (${result.duration.toFixed(1)}s)`;
             
-            // Update navigation buttons
-            updateNavigationButtons();
-            
-            // Show current rating if exists
-            const clipId = result.id;
-            const currentRating = clipRatings[clipId] || 0;
-            updateStarDisplay(currentRating);
-            
             videoModal.classList.remove('hidden');
             videoModal.classList.add('flex');
-        }
-        
-        function updateNavigationButtons() {
-            const prevBtn = document.getElementById('prevResult');
-            const nextBtn = document.getElementById('nextResult');
-            
-            if (!prevBtn || !nextBtn) return;
-            
-            if (currentResultIndex <= 0 || currentDisplayedResults.length === 0) {
-                prevBtn.disabled = true;
-            } else {
-                prevBtn.disabled = false;
-            }
-            
-            if (currentResultIndex >= currentDisplayedResults.length - 1 || currentResultIndex < 0) {
-                nextBtn.disabled = true;
-            } else {
-                nextBtn.disabled = false;
-            }
         }
         
         // Play video from library (starts at beginning)
@@ -1432,8 +1263,7 @@
             videoModal.classList.add('hidden');
             videoModal.classList.remove('flex');
             videoPlayer.pause();
-            gifPlayer.src = '';
-            document.getElementById('starRatingPanel').classList.add('hidden');
+            gifPlayer.src = ''; // Reset GIF
         });
 
         // Close modal on background click
@@ -1442,74 +1272,9 @@
                 videoModal.classList.add('hidden');
                 videoModal.classList.remove('flex');
                 videoPlayer.pause();
-                gifPlayer.src = '';
-                document.getElementById('starRatingPanel').classList.add('hidden');
+                gifPlayer.src = ''; // Reset GIF
             }
         });
-        
-        // Previous/Next navigation
-        document.getElementById('prevResult').addEventListener('click', () => {
-            if (currentResultIndex > 0) {
-                const prevResult = currentDisplayedResults[currentResultIndex - 1];
-                playClip(prevResult, currentResultIndex - 1);
-            }
-        });
-        
-        document.getElementById('nextResult').addEventListener('click', () => {
-            if (currentResultIndex < currentDisplayedResults.length - 1) {
-                const nextResult = currentDisplayedResults[currentResultIndex + 1];
-                playClip(nextResult, currentResultIndex + 1);
-            }
-        });
-        
-        // Star rating functionality
-        document.getElementById('starRatingBtn').addEventListener('click', () => {
-            const panel = document.getElementById('starRatingPanel');
-            panel.classList.toggle('hidden');
-        });
-        
-        function setRating(stars) {
-            selectedStars = stars;
-            document.querySelectorAll('.star-btn').forEach((btn, idx) => {
-                if (idx < stars) {
-                    btn.classList.remove('text-gray-500');
-                    btn.classList.add('text-yellow-400');
-                } else {
-                    btn.classList.add('text-gray-500');
-                    btn.classList.remove('text-yellow-400');
-                }
-            });
-        }
-        
-        function updateStarDisplay(rating) {
-            document.querySelectorAll('.star-btn').forEach((btn, idx) => {
-                if (idx < rating) {
-                    btn.classList.remove('text-gray-500');
-                    btn.classList.add('text-yellow-400');
-                } else {
-                    btn.classList.add('text-gray-500');
-                    btn.classList.remove('text-yellow-400');
-                }
-            });
-        }
-        
-        function submitRating() {
-            if (selectedStars === 0) {
-                alert('Please select a star rating');
-                return;
-            }
-            
-            const currentResult = currentDisplayedResults[currentResultIndex];
-            if (!currentResult) return;
-            
-            const clipId = currentResult.id;
-            clipRatings[clipId] = selectedStars;
-            localStorage.setItem('clipRatings', JSON.stringify(clipRatings));
-            
-            document.getElementById('starRatingPanel').classList.add('hidden');
-            alert(`Rated ${selectedStars} stars! This clip will appear ${selectedStars >= 4 ? 'higher' : 'lower'} in future searches.`);
-            selectedStars = 0;
-        }
         
         // Re-process video with UI feedback (for old and new videos)
         async function reprocessVideoWithUI(videoId, filename) {
@@ -1845,6 +1610,8 @@
         // Audio/Visual Toggle
         const toggleVisual = document.getElementById('toggleVisual');
         const toggleAudio = document.getElementById('toggleAudio');
+        let currentResultsFilter = 'visual'; // default to visual
+        let allSearchResults = []; // Store all results
         
         toggleVisual.addEventListener('click', () => {
             currentResultsFilter = 'visual';
@@ -1870,6 +1637,9 @@
         }
         
         // Category filtering in Library
+        let currentLibraryCategory = 'Videos'; // default
+        let allLibraryVideos = [];
+        
         function filterLibraryByCategory(category) {
             currentLibraryCategory = category;
             
@@ -1904,5 +1674,45 @@
             });
         }
     </script>
+    
+    <!-- Category Selection Modal -->
+    <div id="categoryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
+            <h3 class="text-2xl font-semibold text-gray-900 dark:text-white mb-6">Select Category</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">Choose a category for your upload:</p>
+            
+            <div class="space-y-3 mb-6">
+                <button id="categoryVideosBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center gap-3">
+                    <span class="text-2xl">🎬</span>
+                    <div>
+                        <div class="font-semibold">Videos</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Movies, scenes, and video content</div>
+                    </div>
+                </button>
+                
+                <button id="categoryGIFsBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center gap-3">
+                    <span class="text-2xl">🖼️</span>
+                    <div>
+                        <div class="font-semibold">GIFs</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Animated GIFs and short loops</div>
+                    </div>
+                </button>
+                
+                <button id="categoryPSBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
+                    <div class="font-semibold">PS (Prateek Singh)</div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">Content from Prateek Singh</div>
+                </button>
+            </div>
+            
+            <div class="flex gap-3">
+                <button id="closeCategoryModal" class="flex-1 px-6 py-3 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors">
+                    Cancel
+                </button>
+                <button onclick="proceedWithUpload()" class="flex-1 px-6 py-3 rounded-lg bg-blue-500 text-white hover:bg-blue-600 font-medium transition-colors">
+                    Upload
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
