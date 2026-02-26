@@ -1886,13 +1886,21 @@
         });
         
         function filterAndDisplayResults() {
-            const filtered = allSearchResults.filter(r => r.source === currentResultsFilter);
-            displayResults(filtered, searchInput.value.trim(), false); // false = don't store again
+            // Get current search query
+            const query = searchInput.value.trim();
+            if (!query && allSearchResults.length === 0) {
+                // No search performed yet
+                return;
+            }
+            
+            // Re-display results with current filter
+            displayResults(allSearchResults, query, false); // false = don't store again
         }
         
         // Category filtering in Library
         function filterLibraryByCategory(category) {
             currentLibraryCategory = category;
+            console.log(`🎯 Filtering library by category: ${category}`);
             
             // Update pill styles
             document.querySelectorAll('.category-pill').forEach(btn => {
@@ -1909,8 +1917,13 @@
                 activeBtn.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
             }
             
-            // Filter and display
-            const filtered = allLibraryVideos.filter(v => v.category === category);
+            // Filter and display with better category matching
+            const filtered = allLibraryVideos.filter(v => {
+                const videoCategory = v.category || 'Videos'; // Default to Videos if missing
+                return videoCategory === category;
+            });
+            
+            console.log(`📊 Found ${filtered.length} videos in "${category}" category`);
             displayLibraryVideos(filtered);
         }
         
