@@ -238,8 +238,8 @@ def intelligently_generate_categorized_tags(analysis):
     }
 
 
-def analyze_frame_with_vision(frame_path, transcript_context='', filename_hint=''):
-    """Analyze frame using OpenAI Vision API."""
+def analyze_frame_with_vision(frame_path, transcript_context='', filename_hint='', category='Videos'):
+    """Analyze frame using OpenAI Vision API with category-specific focus."""
     try:
         with open(frame_path, 'rb') as image_file:
             image_data = base64.b64encode(image_file.read()).decode('utf-8')
@@ -250,8 +250,25 @@ def analyze_frame_with_vision(frame_path, transcript_context='', filename_hint='
         if filename_hint:
             clean_hint = filename_hint.replace('_', ' ').replace('-', ' ').replace('.mp4', '').replace('.gif', '').replace('.mov', '')
             context_info += f"\nFilename Hint (may contain movie name): {clean_hint}\n"
+        
+        # Add category-specific instructions
+        category_instructions = ""
+        if category == 'Intro':
+            category_instructions = """
+⚠️ INTRO CATEGORY - SPECIAL FOCUS REQUIRED:
+This is a YouTube creator intro (max 30 seconds). PRIORITIZE:
+1. CAMERA MOVEMENT: Zoom, pan, tilt, dolly, tracking, handheld, static, rotation, crane shot
+2. CAMERA VIEW/ANGLE: POV, aerial, low angle, high angle, dutch angle, close-up, wide shot, medium shot
+3. LOCATION DETAILS: Indoor/outdoor, specific place (studio, office, street, park), time of day, weather
+4. OBJECTS: Props, branding elements, logos, text on screen, equipment visible
+5. LIGHTING: Natural/artificial, color temperature, lighting setup (key/fill/back), mood lighting
+6. COMPOSITION: Framing, rule of thirds, symmetry, leading lines, depth
+
+For Intro category, describe camera techniques and location MORE than emotions.
+"""
 
         prompt = f"""You are an expert video analyst. Study this frame CAREFULLY and use ALL context clues.
+{category_instructions}
 
 CONTEXT CLUES PROVIDED:
 {context_info}
@@ -568,7 +585,7 @@ def process_video(video_path, filename, category='Videos'):
         nearby = supabase.table('clips').select('transcript_text').eq('video_id', video_id).lte('start_time', frame_data['timestamp'] + 10).gte('end_time', frame_data['timestamp'] - 10).order('start_time').limit(3).execute()
         context_transcript = ' '.join([r['transcript_text'] or '' for r in nearby.data])
 
-        analysis = analyze_frame_with_vision(frame_data['path'], transcript_context=context_transcript, filename_hint=filename)
+        analysis = analyze_frame_with_vision(frame_data['path'], transcript_context=context_transcript, filename_hint=filename, category=category)
         if not analysis:
             continue
 
@@ -1071,7 +1088,7 @@ def list_videos():
 @app.route('/reprocess/<int:video_id>', methods=['POST'])
 def reprocess_video(video_id):
     try:
-        v_resp = supabase.table('videos').select('filename, duration, supabase_video_url').eq('id', video_id).execute()
+        v_resp = supabase.table('videos').select('filename, duration, supabase_video_url, category').eq('id', video_id).execute()
         if not v_resp.data:
             return jsonify({'error': 'Video not found'}), 404
 
@@ -1079,6 +1096,7 @@ def reprocess_video(video_id):
         filename = v['filename']
         video_duration = v['duration']
         video_url = v.get('supabase_video_url')
+        category = v.get('category', 'Videos')
 
         supabase.table('visual_frames').delete().eq('video_id', video_id).execute()
 
@@ -1105,7 +1123,7 @@ def reprocess_video(video_id):
             nearby = supabase.table('clips').select('transcript_text').eq('video_id', video_id).lte('start_time', frame_data['timestamp'] + 10).gte('end_time', frame_data['timestamp'] - 10).order('start_time').limit(3).execute()
             context = ' '.join([r['transcript_text'] or '' for r in nearby.data])
 
-            analysis = analyze_frame_with_vision(frame_data['path'], transcript_context=context, filename_hint=filename)
+            analysis = analyze_frame_with_vision(frame_data['path'], transcript_context=context, filename_hint=filename, category=category)
             if not analysis:
                 continue
 

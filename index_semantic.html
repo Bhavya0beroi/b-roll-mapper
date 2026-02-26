@@ -153,6 +153,7 @@
                         id="searchInput" 
                         placeholder="🔍 Search for B-Rolls... (e.g., 'food', 'customer service', 'office scene')" 
                         class="w-full bg-white dark:bg-dark-card text-gray-900 dark:text-white border dark:border-gray-700 rounded-lg px-4 py-4 pl-12 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        autocomplete="off"
                     >
                     <svg class="absolute left-4 top-4 h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -196,6 +197,7 @@
                         <option value="Videos">🎬 Videos</option>
                         <option value="GIFs">🖼️ GIFs</option>
                         <option value="PS">🧍 PS (Prateek Singh)</option>
+                        <option value="Intro">🎬 Intro</option>
                     </select>
                 </div>
                 
@@ -235,16 +237,16 @@
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">🎯 Search Results</h2>
                 <div class="flex items-center gap-4">
-                    <!-- Audio/Visual Toggle -->
-                    <div class="flex gap-1 bg-gray-200 dark:bg-gray-700 p-1 rounded-lg">
-                        <button id="toggleVisual" class="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-blue-500 text-white">
+                    <!-- Audio/Visual Toggle (Fixed width to prevent shifting) -->
+                    <div class="flex gap-1 bg-gray-200 dark:bg-gray-700 p-1 rounded-lg" style="min-width: 220px;">
+                        <button id="toggleVisual" class="flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors bg-blue-500 text-white">
                             👁️ Visual
                         </button>
-                        <button id="toggleAudio" class="px-4 py-2 rounded-md text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
+                        <button id="toggleAudio" class="flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
                             🎙️ Audio
                         </button>
                     </div>
-                    <span id="resultCount" class="text-sm text-gray-600 dark:text-gray-400"></span>
+                    <span id="resultCount" class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap"></span>
                 </div>
             </div>
             <div id="resultsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -277,6 +279,9 @@
                         <button id="catPS" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600" onclick="filterLibraryByCategory('PS')">
                             🧍 PS
                         </button>
+                        <button id="catIntro" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600" onclick="filterLibraryByCategory('Intro')">
+                            🎬 Intro
+                        </button>
                     </div>
                 </div>
                 <button id="refreshLibrary" class="text-blue-500 hover:text-blue-400 text-sm flex items-center gap-2">
@@ -305,78 +310,36 @@
             <div class="bg-dark-card rounded-lg p-6 max-w-4xl w-full mx-4 relative">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-xl font-semibold" id="modalTitle">Video Player</h3>
-                    <div class="flex items-center gap-4">
-                        <!-- Star Rating Button -->
-                        <button id="starRatingBtn" class="text-gray-400 hover:text-yellow-400 transition-colors" title="Rate this clip">
-                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                            </svg>
-                        </button>
-                        <!-- Navigation Arrows -->
-                        <div class="flex gap-2">
-                            <button id="prevResult" class="text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Previous result">
-                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                                </svg>
-                            </button>
-                            <button id="nextResult" class="text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Next result">
-                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <button id="closeModal" class="text-gray-400 hover:text-white">
-                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
-                    </div>
+                    <button id="closeModal" class="text-gray-400 hover:text-white">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
                 </div>
                 
-                <!-- Star Rating Panel (Hidden by default) -->
-                <div id="starRatingPanel" class="hidden mb-4 p-4 bg-gray-800 rounded-lg">
-                    <p class="text-sm text-gray-300 mb-3">Rate this clip:</p>
-                    <div class="flex items-center gap-3">
-                        <div class="flex gap-1" id="starButtons">
-                            <button onclick="setRating(1)" class="star-btn text-gray-500 hover:text-yellow-400 transition-colors">
-                                <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                            </button>
-                            <button onclick="setRating(2)" class="star-btn text-gray-500 hover:text-yellow-400 transition-colors">
-                                <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                            </button>
-                            <button onclick="setRating(3)" class="star-btn text-gray-500 hover:text-yellow-400 transition-colors">
-                                <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                            </button>
-                            <button onclick="setRating(4)" class="star-btn text-gray-500 hover:text-yellow-400 transition-colors">
-                                <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                            </button>
-                            <button onclick="setRating(5)" class="star-btn text-gray-500 hover:text-yellow-400 transition-colors">
-                                <svg class="h-8 w-8" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <button onclick="submitRating()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors">
-                            Submit
-                        </button>
-                    </div>
-                </div>
-                <div class="relative">
-                    <video id="videoPlayer" class="w-full rounded-lg mb-4" controls preload="metadata"></video>
+                <!-- Video Container with Navigation Arrows Overlay -->
+                <div class="relative mb-4">
+                    <video id="videoPlayer" class="w-full rounded-lg" controls preload="metadata"></video>
                     <div id="videoLoading" class="hidden absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center rounded-lg">
                         <div class="text-white text-center">
                             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-2"></div>
                             <p class="text-sm">Loading video...</p>
                         </div>
                     </div>
+                    
+                    <!-- Previous Arrow (Left Side) -->
+                    <button id="prevResult" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-3 transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10" title="Previous result">
+                        <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </button>
+                    
+                    <!-- Next Arrow (Right Side) -->
+                    <button id="nextResult" class="absolute right-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-3 transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10" title="Next result">
+                        <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </button>
                 </div>
                 <img id="gifPlayer" class="w-full rounded-lg mb-4 hidden" alt="GIF player">
                 <div class="bg-dark-bg rounded p-4 max-h-96 overflow-y-auto">
@@ -419,6 +382,14 @@
                 <button id="categoryPSBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
                     <div class="font-semibold">🧍 PS (Prateek Singh)</div>
                     <div class="text-sm text-gray-500 dark:text-gray-400">Content from Prateek Singh</div>
+                </button>
+                
+                <button id="categoryIntroBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center gap-3">
+                    <span class="text-2xl">🎬</span>
+                    <div>
+                        <div class="font-semibold">Intro</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">YouTube creator intros (max 30s)</div>
+                    </div>
                 </button>
             </div>
             
@@ -1084,11 +1055,29 @@
                 const thumbnailName = `thumb_${result.filename.replace(/\.[^/.]+$/, '')}.jpg`;
                 const thumbnailUrl = `${API_BASE}/thumbnails/${thumbnailName}`;
                 
+                // Star rating display
+                const userRating = result.userRating || 0;
+                const starDisplay = Array(5).fill(0).map((_, i) => 
+                    i < userRating ? '⭐' : '☆'
+                ).join('');
+                
                 card.innerHTML = `
                     <div class="relative">
                         <img src="${thumbnailUrl}" alt="${result.filename}" class="w-full h-32 object-cover" onerror="this.style.display='none'">
-                        <div class="absolute top-2 right-2 ${matchColor} text-xs font-bold bg-black bg-opacity-80 px-2 py-1 rounded">
-                            🎯 ${similarityPercent}%
+                        <div class="absolute top-2 right-2 flex flex-col items-end gap-1">
+                            <div class="${matchColor} text-xs font-bold bg-black bg-opacity-80 px-2 py-1 rounded">
+                                🎯 ${similarityPercent}%
+                            </div>
+                            <button 
+                                class="bg-black bg-opacity-60 hover:bg-opacity-80 text-yellow-400 text-xs font-bold px-2 py-1 rounded transition-all flex items-center gap-1" 
+                                onclick="event.stopPropagation(); showStarRating(${result.id}, ${index})"
+                                title="Rate this clip"
+                            >
+                                <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                </svg>
+                                ${userRating > 0 ? starDisplay : 'Rate'}
+                            </button>
                         </div>
                         <div class="absolute top-2 left-2 flex gap-1">
                             ${sourceBadge}
@@ -1370,11 +1359,6 @@
             // Update navigation buttons
             updateNavigationButtons();
             
-            // Show current rating if exists
-            const clipId = result.id;
-            const currentRating = clipRatings[clipId] || 0;
-            updateStarDisplay(currentRating);
-            
             videoModal.classList.remove('hidden');
             videoModal.classList.add('flex');
         }
@@ -1433,7 +1417,6 @@
             videoModal.classList.remove('flex');
             videoPlayer.pause();
             gifPlayer.src = '';
-            document.getElementById('starRatingPanel').classList.add('hidden');
         });
 
         // Close modal on background click
@@ -1443,7 +1426,6 @@
                 videoModal.classList.remove('flex');
                 videoPlayer.pause();
                 gifPlayer.src = '';
-                document.getElementById('starRatingPanel').classList.add('hidden');
             }
         });
         
@@ -1462,53 +1444,29 @@
             }
         });
         
-        // Star rating functionality
-        document.getElementById('starRatingBtn').addEventListener('click', () => {
-            const panel = document.getElementById('starRatingPanel');
-            panel.classList.toggle('hidden');
-        });
-        
-        function setRating(stars) {
-            selectedStars = stars;
-            document.querySelectorAll('.star-btn').forEach((btn, idx) => {
-                if (idx < stars) {
-                    btn.classList.remove('text-gray-500');
-                    btn.classList.add('text-yellow-400');
-                } else {
-                    btn.classList.add('text-gray-500');
-                    btn.classList.remove('text-yellow-400');
-                }
-            });
-        }
-        
-        function updateStarDisplay(rating) {
-            document.querySelectorAll('.star-btn').forEach((btn, idx) => {
-                if (idx < rating) {
-                    btn.classList.remove('text-gray-500');
-                    btn.classList.add('text-yellow-400');
-                } else {
-                    btn.classList.add('text-gray-500');
-                    btn.classList.remove('text-yellow-400');
-                }
-            });
-        }
-        
-        function submitRating() {
-            if (selectedStars === 0) {
-                alert('Please select a star rating');
+        // Inline star rating from result cards
+        function showStarRating(clipId, resultIndex) {
+            const currentRating = clipRatings[clipId] || 0;
+            const stars = prompt(`Rate this clip (1-5 stars):\n\nCurrent rating: ${currentRating > 0 ? currentRating + ' ⭐' : 'Not rated'}\n\nEnter 1-5:`, currentRating || '');
+            
+            if (stars === null) return; // Cancelled
+            
+            const rating = parseInt(stars);
+            if (isNaN(rating) || rating < 1 || rating > 5) {
+                alert('Please enter a number between 1 and 5');
                 return;
             }
             
-            const currentResult = currentDisplayedResults[currentResultIndex];
-            if (!currentResult) return;
-            
-            const clipId = currentResult.id;
-            clipRatings[clipId] = selectedStars;
+            clipRatings[clipId] = rating;
             localStorage.setItem('clipRatings', JSON.stringify(clipRatings));
             
-            document.getElementById('starRatingPanel').classList.add('hidden');
-            alert(`Rated ${selectedStars} stars! This clip will appear ${selectedStars >= 4 ? 'higher' : 'lower'} in future searches.`);
-            selectedStars = 0;
+            alert(`Rated ${rating} ⭐! This clip will appear ${rating >= 4 ? 'higher' : 'lower'} in future searches.`);
+            
+            // Refresh the display to show updated rating
+            const query = searchInput.value.trim();
+            if (query) {
+                displayResults(allSearchResults, query, false);
+            }
         }
         
         // Re-process video with UI feedback (for old and new videos)
@@ -1793,6 +1751,7 @@
         const categoryVideosBtn = document.getElementById('categoryVideosBtn');
         const categoryGIFsBtn = document.getElementById('categoryGIFsBtn');
         const categoryPSBtn = document.getElementById('categoryPSBtn');
+        const categoryIntroBtn = document.getElementById('categoryIntroBtn');
         const closeCategoryModal = document.getElementById('closeCategoryModal');
         let selectedCategory = null;
         let pendingFiles = null;
@@ -1802,7 +1761,7 @@
             selectedCategory = null;
             categoryModal.classList.remove('hidden');
             // Reset button styles
-            [categoryVideosBtn, categoryGIFsBtn, categoryPSBtn].forEach(btn => {
+            [categoryVideosBtn, categoryGIFsBtn, categoryPSBtn, categoryIntroBtn].forEach(btn => {
                 btn.classList.remove('bg-blue-500', 'text-white');
                 btn.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
             });
@@ -1811,7 +1770,7 @@
         function selectCategory(category, button) {
             selectedCategory = category;
             // Update button styles
-            [categoryVideosBtn, categoryGIFsBtn, categoryPSBtn].forEach(btn => {
+            [categoryVideosBtn, categoryGIFsBtn, categoryPSBtn, categoryIntroBtn].forEach(btn => {
                 btn.classList.remove('bg-blue-500', 'text-white');
                 btn.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
             });
@@ -1841,6 +1800,7 @@
         categoryVideosBtn.addEventListener('click', () => selectCategory('Videos', categoryVideosBtn));
         categoryGIFsBtn.addEventListener('click', () => selectCategory('GIFs', categoryGIFsBtn));
         categoryPSBtn.addEventListener('click', () => selectCategory('PS', categoryPSBtn));
+        categoryIntroBtn.addEventListener('click', () => selectCategory('Intro', categoryIntroBtn));
         
         // Audio/Visual Toggle
         const toggleVisual = document.getElementById('toggleVisual');
@@ -1881,9 +1841,12 @@
             
             const activeBtn = category === 'Videos' ? document.getElementById('catVideos') :
                              category === 'GIFs' ? document.getElementById('catGIFs') :
-                             document.getElementById('catPS');
-            activeBtn.classList.add('bg-blue-500', 'text-white');
-            activeBtn.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                             category === 'PS' ? document.getElementById('catPS') :
+                             document.getElementById('catIntro');
+            if (activeBtn) {
+                activeBtn.classList.add('bg-blue-500', 'text-white');
+                activeBtn.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+            }
             
             // Filter and display
             const filtered = allLibraryVideos.filter(v => v.category === category);
