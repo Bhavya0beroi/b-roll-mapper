@@ -879,6 +879,7 @@
                 console.log('⚠️ No results to display');
                 resultsSection.classList.add('hidden');
                 noResultsState.classList.remove('hidden');
+                librarySection.classList.add('hidden'); // Hide library when showing no results
                 // Update empty state text
                 const emptyStateText = noResultsState.querySelector('p');
                 if (emptyStateText) {
@@ -889,9 +890,10 @@
                 return;
             }
 
-            // Show results, hide empty state
+            // Show results, hide empty state and library
             console.log('✅ Showing results section');
             noResultsState.classList.add('hidden');
+            librarySection.classList.add('hidden'); // Hide library when showing results
             resultsSection.classList.remove('hidden');
             const totalCount = allSearchResults.length;
             const filterType = currentResultsFilter === 'visual' ? 'Visual' : 'Audio';
