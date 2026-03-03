@@ -768,8 +768,11 @@ def upload_file():
     
     # Get category from form data (default to 'Videos' if not provided)
     category = request.form.get('category', 'Videos')
-    if category not in ['Videos', 'GIFs', 'PS']:
+    # Allow all valid categories including Intro
+    if category not in ['Videos', 'GIFs', 'PS', 'Intro']:
         category = 'Videos'
+    
+    print(f"✅ Category received: {category}")  # Debug log
 
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
