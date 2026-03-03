@@ -1010,6 +1010,9 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter, categori
                 'category': video_category
             })
 
+    # Group visual frames by video_id to avoid duplicate results
+    video_best_frames = {}  # video_id -> best frame data
+    
     for vf in vf_resp.data:
         # Skip if category filter is active and this video's category doesn't match
         if allowed_video_ids is not None and vf['video_id'] not in allowed_video_ids:
@@ -1051,6 +1054,27 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter, categori
                     break
 
         sim = min(1.0, sim + exact_boost)
+        
+        video_id = vf['video_id']
+        
+        # For short videos (< 30s), keep only the BEST matching frame per video
+        video_info = v_map.get(video_id, {})
+        video_duration = video_info.get('duration', 999)
+        
+        if video_duration < 30:
+            # Short video: keep only best frame per video
+            if video_id not in video_best_frames or sim > video_best_frames[video_id]['similarity']:
+                video_best_frames[video_id] = {
+                    'vf': vf,
+                    'similarity': sim,
+                    'custom_tags': custom_tags,
+                    'desc': desc,
+                    'ocr_text': ocr_text
+                }
+            continue  # Don't add to results yet
+        
+        # Long videos (>= 30s): add all frames as before
+        sim = sim
 
         if detected_series and series_movie and detected_series not in (series_movie or '').lower():
             continue
