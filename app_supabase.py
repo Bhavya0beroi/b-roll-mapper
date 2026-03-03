@@ -269,48 +269,52 @@ def analyze_frame_with_vision(frame_path, transcript_context='', filename_hint='
         category_instructions = ""
         if category == 'Intro':
             category_instructions = """
-⚠️ INTRO CATEGORY - MAXIMUM DETAIL REQUIRED:
-This is a YouTube creator intro or movie intro (max 60 seconds). Provide EXTREMELY DETAILED analysis:
+⚠️ INTRO CATEGORY - ULTRA-DETAILED ANALYSIS REQUIRED:
+This is a YouTube/movie intro (max 60 seconds). Provide comprehensive technical analysis.
 
-1. CAMERA WORK (CRITICAL):
-   - Camera movement: zoom, pan, tilt, dolly, tracking, handheld, static, rotation, crane shot, slider
-   - Camera angles: POV, aerial, drone shot, low angle, high angle, dutch angle, bird's eye
-   - Shot types: ECU (extreme close-up), close-up, medium shot, wide shot, establishing shot, two-shot
-   - Camera transitions: cut, fade, dissolve, wipe
-   
-2. LOCATION & SETTING (VERY DETAILED):
-   - Indoor/outdoor, specific location (studio, office, street, park, beach, mountain, city)
-   - Time of day, weather conditions, season
-   - Background details, architecture, landmarks
-   
-3. VISUAL STYLE & PRODUCTION:
-   - Lighting setup: natural/artificial, color temperature, key/fill/back lights, mood lighting
-   - Color grading: warm/cool tones, saturation, contrast, cinematic look
-   - Composition: rule of thirds, symmetry, leading lines, depth of field, framing
-   - Visual effects: overlays, graphics, animations, transitions
-   
-4. OBJECTS & PROPS (ENUMERATE ALL):
-   - Brand logos, products, equipment visible
-   - Text on screen, titles, graphics
-   - Props, furniture, decorations
-   
-5. MUSIC & AUDIO STYLE:
-   - Background music genre (electronic, orchestral, hip-hop, pop, cinematic, upbeat, dramatic)
-   - Music mood (energetic, calm, epic, emotional, mysterious)
-   - Sound design elements (whooshes, impacts, ambient sounds)
-   
-6. CREATOR IDENTIFICATION:
-   - Try to identify YouTube channel or content creator from visual style
-   - Look for watermarks, logos, channel branding
-   - Recognize famous YouTubers or influencers if visible
-   - Movie/show identification from production quality and style
-   
-7. CHARACTERS & PEOPLE:
-   - Number of people, gender, age range, clothing style
-   - Actions, poses, facial expressions
-   - Professional roles (host, presenter, actor, model)
+FORMAT YOUR VISUAL DESCRIPTION AS:
+[CAMERA] → [SUBJECT] → [ACTION] → [OBJECTS] → [SETTING] → [LIGHTING/STYLE]
 
-IMPORTANT: Be EXTREMELY detailed. 3-5 paragraphs for visual description is expected for Intro category.
+MANDATORY SECTIONS IN VISUAL DESCRIPTION:
+
+1. CAMERA TECHNIQUE (Start with this):
+   Shot: close-up/medium/wide/ECU/establishing/aerial/drone/POV
+   Angle: eye-level/low-angle/high-angle/dutch/bird's-eye/worm's-eye
+   Movement: static/pan-left/pan-right/tilt-up/tilt-down/zoom-in/zoom-out/tracking/dolly/handheld/crane/slider
+   
+2. SUBJECT (Person/Main focus):
+   - Age, gender, ethnicity, clothing (color, style, brand if visible)
+   - Facial expression, body language, gestures
+   - What they're doing (specific action)
+   
+3. OBJECTS & PROPS (List EVERYTHING visible):
+   - Furniture (sofa color, table, chair, desk)
+   - Electronics (laptop brand, phone, camera, microphone)
+   - Decorations (plants type, frames, artwork, books, shelves)
+   - Branding (logos, text on items, watermarks)
+   - Text on screen (title cards, channel name, graphics)
+   
+4. SETTING & ENVIRONMENT:
+   - Room type (living room, studio, office, bedroom, outdoor)
+   - Interior style (modern, minimalist, rustic, industrial)
+   - Wall color, flooring, windows
+   - Background depth (what's behind subject)
+   
+5. LIGHTING & COLOR:
+   - Light sources (natural window light, ring light, softbox, LED panels)
+   - Color temperature (warm/cool, golden hour, blue hour)
+   - Color grading style (vibrant, muted, cinematic, high-contrast)
+   - Shadows, highlights, exposure
+
+6. CREATOR/CHANNEL (If identifiable):
+   - Channel name from watermark/graphics
+   - Creator name if famous/recognizable
+   - Production style indicators
+
+EXAMPLE GOOD OUTPUT:
+"[CAMERA: Medium shot, eye-level angle, static] Young Indian man in his late 20s wearing a teal polo shirt with mic clipped on collar, sitting on a beige/cream L-shaped fabric sofa in a modern indoor living room. He's making hand gestures near his chin while speaking directly to camera with animated, friendly expression. [OBJECTS: Behind him - tall green potted plant (monstera) in left corner, white/cream decorative wall frames, wooden furniture visible at edges. Floor has light-colored carpet/rug. ZERO1 channel logo watermark in top-right corner.] [SETTING: Well-lit modern home studio setup with minimalist aesthetic, neutral color palette - beige sofa, cream walls, natural wood tones.] [LIGHTING: Soft, diffused lighting from front (likely ring light or softbox), warm color temperature creating inviting atmosphere, even exposure with no harsh shadows, professional YouTube production quality.]"
+
+Be SPECIFIC not generic!
 """
         elif category == 'Videos':
             category_instructions = """
@@ -342,11 +346,13 @@ STEP-BY-STEP VISUAL ANALYSIS:
 
 GENERATE COMPREHENSIVE TAGS:
 
-Visual Description (3-4 detailed sentences):
-- CAMERA ANGLE FIRST: "Close-up shot of..." or "Aerial view of..." or "Wide angle shot showing..."
-- WHO (generic if unknown: "young man", "woman") + WHAT specific action + WHERE
-- Facial expressions, complex emotional states, body language
-- Lighting, color palette, setting atmosphere
+Visual Description (Format: [CAMERA] → [SUBJECT] → [ACTION] → [OBJECTS] → [SETTING] → [LIGHTING]):
+- Start with CAMERA: "Medium shot, eye-level angle, static" or "Close-up, low angle, slow zoom"
+- SUBJECT: WHO (generic: "young man in teal shirt", "woman") + facial expression + gesture/pose
+- ACTION: What they're doing specifically
+- OBJECTS: List ALL visible items (furniture colors, plant types, electronics, logos, text, decorations)
+- SETTING: Room type, style, colors, atmosphere
+- LIGHTING: Light sources, color temperature, mood
 
 Scene Summary (2-3 sentences): Deep emotional/narrative significance, psychological state
 
