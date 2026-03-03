@@ -546,61 +546,36 @@
                 formData.append('category', category);
 
                 try {
-                    console.log(`📤 Uploading: ${file.name} (${fileSizeMB}MB) to category: ${category}`);
+                    console.log(`📤 Starting upload: ${file.name} (${fileSizeMB}MB) to category: ${category}`);
+                    currentFile.textContent = `Uploading: ${file.name} (${fileSizeMB}MB)...`;
                     
-                    // Create XMLHttpRequest for upload progress tracking
-                    const uploadPromise = new Promise((resolve, reject) => {
-                        const xhr = new XMLHttpRequest();
-                        
-                        // Upload progress
-                        xhr.upload.addEventListener('progress', (e) => {
-                            if (e.lengthComputable) {
-                                const percentComplete = (e.loaded / e.total) * 100;
-                                currentFile.textContent = `Uploading: ${file.name} (${percentComplete.toFixed(0)}% of ${fileSizeMB}MB)`;
-                            }
-                        });
-                        
-                        // Upload complete (file sent to server)
-                        xhr.upload.addEventListener('load', () => {
-                            currentFile.textContent = `Processing: ${file.name} (AI analyzing video...)`;
-                        });
-                        
-                        // Response received
-                        xhr.addEventListener('load', () => {
-                            if (xhr.status >= 200 && xhr.status < 300) {
-                                try {
-                                    const result = JSON.parse(xhr.responseText);
-                                    resolve(result);
-                                } catch (e) {
-                                    reject(new Error('Invalid server response'));
-                                }
-                            } else {
-                                reject(new Error(`Server error: ${xhr.status} - ${xhr.responseText}`));
-                            }
-                        });
-                        
-                        xhr.addEventListener('error', () => {
-                            reject(new Error('Network error during upload'));
-                        });
-                        
-                        xhr.addEventListener('timeout', () => {
-                            reject(new Error('Upload timeout (file too large or slow connection)'));
-                        });
-                        
-                        // Set 10 minute timeout for large files
-                        xhr.timeout = 600000;
-                        
-                        xhr.open('POST', `${API_BASE}/upload`);
-                        xhr.send(formData);
+                    // Use standard fetch with longer timeout for Railway
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 min timeout
+                    
+                    const response = await fetch(`${API_BASE}/upload`, {
+                        method: 'POST',
+                        body: formData,
+                        signal: controller.signal
                     });
                     
-                    const result = await uploadPromise;
+                    clearTimeout(timeoutId);
+                    console.log(`📡 Response status: ${response.status}`);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`❌ Server error (${response.status}):`, errorText);
+                        throw new Error(`Server returned ${response.status}: ${errorText}`);
+                    }
+                    
+                    const result = await response.json();
                     console.log('📊 Result:', result);
                     
                     if (result.success) {
                         completed++;
                         uploadCount.textContent = `${completed}/${totalFiles}`;
                         progressBar.style.width = `${(completed / totalFiles) * 100}%`;
+                        currentFile.textContent = `✅ ${file.name} uploaded! AI analyzing in background...`;
                         console.log(`✅ Successfully uploaded: ${file.name}`);
                     } else {
                         console.error('❌ Upload failed:', result.error);
@@ -608,7 +583,11 @@
                     }
                 } catch (error) {
                     console.error('❌ Error uploading file:', error);
-                    alert(`Error uploading ${file.name}:\n\n${error.message}\n\nTry:\n1. Smaller file size (<100MB)\n2. Better internet connection\n3. Compress video before upload`);
+                    if (error.name === 'AbortError') {
+                        alert(`Upload timeout for ${file.name}:\n\nFile is too large or connection too slow.\n\nTry compressing the video first.`);
+                    } else {
+                        alert(`Error uploading ${file.name}:\n\n${error.message}\n\nCheck Railway logs for details.`);
+                    }
                 }
             }
             

@@ -40,7 +40,16 @@ if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 app = Flask(__name__, static_folder='.')
-CORS(app)
+
+# CORS Configuration - Allow all origins and methods for Railway
+CORS(app, 
+     resources={r"/*": {
+         "origins": "*",
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization"],
+         "expose_headers": ["Content-Length", "X-Upload-Progress"],
+         "max_age": 3600
+     }})
 
 # Flask Configuration
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
