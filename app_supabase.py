@@ -606,10 +606,13 @@ def process_video(video_path, filename, category='Videos'):
     video_id = result.data[0]['id']
     print(f"✅ Video record created (ID: {video_id})")
 
-    audio_path = extract_audio(video_path)
+    # Check if this is an image (Photo category)
+    is_image = filename.lower().endswith(('.jpg', '.jpeg', '.png'))
+    
+    audio_path = None if is_image else extract_audio(video_path)
     segment_count = 0
 
-    if audio_path:
+    if audio_path and not is_image:
         try:
             transcript = transcribe_audio(audio_path)
             for i, segment in enumerate(transcript.segments):

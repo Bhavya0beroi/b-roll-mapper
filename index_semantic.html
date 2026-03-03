@@ -2088,7 +2088,8 @@
             const activeBtn = category === 'Videos' ? document.getElementById('catVideos') :
                              category === 'GIFs' ? document.getElementById('catGIFs') :
                              category === 'PS' ? document.getElementById('catPS') :
-                             document.getElementById('catIntro');
+                             category === 'Intro' ? document.getElementById('catIntro') :
+                             document.getElementById('catPhoto');
             if (activeBtn) {
                 activeBtn.classList.add('bg-blue-500', 'text-white');
                 activeBtn.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
