@@ -565,16 +565,27 @@ def upload_to_supabase_storage(local_path, remote_path, content_type=None):
 
 
 def process_video(video_path, filename, category='Videos'):
-    """Process video: upload to Supabase, transcribe, create embeddings, visual analysis."""
-    print(f"\n{'='*60}\n🎬 PROCESSING VIDEO: {filename} (Category: {category})\n{'='*60}")
+    """Process video/image: upload to Supabase, transcribe (videos only), visual analysis."""
+    print(f"\n{'='*60}\n🎬 PROCESSING: {filename} (Category: {category})\n{'='*60}")
 
-    video_duration = get_video_duration(video_path)
-    print(f"⏱️  Video duration: {video_duration:.2f}s")
-
-    thumbnail_time = min(1.0, video_duration * 0.1)
-    thumbnail_filename = f"thumb_{os.path.splitext(filename)[0]}.jpg"
-    thumbnail_path = os.path.join(THUMBNAILS_FOLDER, thumbnail_filename)
-    generate_thumbnail(video_path, thumbnail_path, thumbnail_time)
+    # Check if this is an image file
+    is_image = filename.lower().endswith(('.jpg', '.jpeg', '.png'))
+    
+    if is_image:
+        # For images: duration = 0, no video processing needed
+        video_duration = 0
+        thumbnail_path = video_path  # Use image itself as thumbnail
+        thumbnail_filename = filename
+        print(f"📸 Processing static image: {filename}")
+    else:
+        # For videos: get duration and generate thumbnail
+        video_duration = get_video_duration(video_path)
+        print(f"⏱️  Video duration: {video_duration:.2f}s")
+        
+        thumbnail_time = min(1.0, video_duration * 0.1)
+        thumbnail_filename = f"thumb_{os.path.splitext(filename)[0]}.jpg"
+        thumbnail_path = os.path.join(THUMBNAILS_FOLDER, thumbnail_filename)
+        generate_thumbnail(video_path, thumbnail_path, thumbnail_time)
 
     video_remote_path = f"videos/{filename}"
     print("📤 Uploading video to Supabase Storage...")
@@ -606,13 +617,11 @@ def process_video(video_path, filename, category='Videos'):
     video_id = result.data[0]['id']
     print(f"✅ Video record created (ID: {video_id})")
 
-    # Check if this is an image (Photo category)
-    is_image = filename.lower().endswith(('.jpg', '.jpeg', '.png'))
-    
+    # Extract audio only for videos, not for images
     audio_path = None if is_image else extract_audio(video_path)
     segment_count = 0
 
-    if audio_path and not is_image:
+    if audio_path:
         try:
             transcript = transcribe_audio(audio_path)
             for i, segment in enumerate(transcript.segments):
@@ -644,7 +653,14 @@ def process_video(video_path, filename, category='Videos'):
         except Exception as e:
             print(f"⚠️  Audio transcription error: {e}")
 
-    frames = extract_frames_for_analysis(video_path, video_duration, filename)
+    # Extract frames for visual analysis
+    if is_image:
+        # For images: analyze the image itself
+        frames = [{'timestamp': 0, 'path': video_path, 'filename': filename}]
+        print(f"📸 Analyzing static image")
+    else:
+        # For videos: extract multiple frames
+        frames = extract_frames_for_analysis(video_path, video_duration, filename)
 
     transcript_resp = supabase.table('clips').select('transcript_text').eq('video_id', video_id).order('start_time').execute()
     full_transcript = ' '.join([r['transcript_text'] or '' for r in transcript_resp.data])
