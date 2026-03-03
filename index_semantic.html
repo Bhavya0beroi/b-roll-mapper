@@ -1929,7 +1929,16 @@
         const categoryGIFsBtn = document.getElementById('categoryGIFsBtn');
         const categoryPSBtn = document.getElementById('categoryPSBtn');
         const categoryIntroBtn = document.getElementById('categoryIntroBtn');
+        const categoryPhotoBtn = document.getElementById('categoryPhotoBtn');
         const closeCategoryModal = document.getElementById('closeCategoryModal');
+        
+        const introStyleModal = document.getElementById('introStyleModal');
+        const closeIntroStyleModal = document.getElementById('closeIntroStyleModal');
+        const introAnimationBtn = document.getElementById('introAnimationBtn');
+        const introLocationBtn = document.getElementById('introLocationBtn');
+        const introVlogBtn = document.getElementById('introVlogBtn');
+        const introColdOpenBtn = document.getElementById('introColdOpenBtn');
+        const introNarrationBtn = document.getElementById('introNarrationBtn');
         let selectedCategory = null;
         let pendingFiles = null;
         
@@ -1960,13 +1969,57 @@
                 alert('Please select a category before uploading');
                 return;
             }
+            
+            // If Intro selected, need style too
+            if (selectedCategory === 'Intro' && !selectedIntroStyle) {
+                alert('Please select intro style');
+                return;
+            }
+            
             categoryModal.classList.add('hidden');
             if (pendingFiles) {
-                handleFilesWithCategory(pendingFiles, selectedCategory);
+                // Combine category + intro style
+                const finalCategory = selectedCategory === 'Intro' && selectedIntroStyle
+                    ? `Intro-${selectedIntroStyle}`
+                    : selectedCategory;
+                    
+                handleFilesWithCategory(pendingFiles, finalCategory);
                 pendingFiles = null;
                 selectedCategory = null;
+                selectedIntroStyle = null;
             }
         }
+        
+        // Intro style selection handlers
+        closeIntroStyleModal.addEventListener('click', () => {
+            introStyleModal.classList.add('hidden');
+            categoryModal.classList.remove('hidden');
+        });
+        
+        function selectIntroStyle(style, button) {
+            selectedIntroStyle = style;
+            [introAnimationBtn, introLocationBtn, introVlogBtn, introColdOpenBtn, introNarrationBtn].forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+                btn.classList.add('bg-gray-200', 'dark:bg-gray-700');
+            });
+            button.classList.remove('bg-gray-200', 'dark:bg-gray-700');
+            button.classList.add('bg-blue-500', 'text-white');
+            
+            // Proceed with upload
+            introStyleModal.classList.add('hidden');
+            if (pendingFiles) {
+                handleFilesWithCategory(pendingFiles, `Intro-${style}`);
+                pendingFiles = null;
+                selectedCategory = null;
+                selectedIntroStyle = null;
+            }
+        }
+        
+        introAnimationBtn.addEventListener('click', () => selectIntroStyle('Animation', introAnimationBtn));
+        introLocationBtn.addEventListener('click', () => selectIntroStyle('Location', introLocationBtn));
+        introVlogBtn.addEventListener('click', () => selectIntroStyle('Vlog', introVlogBtn));
+        introColdOpenBtn.addEventListener('click', () => selectIntroStyle('ColdOpen', introColdOpenBtn));
+        introNarrationBtn.addEventListener('click', () => selectIntroStyle('Narration', introNarrationBtn));
         
         closeCategoryModal.addEventListener('click', () => {
             categoryModal.classList.add('hidden');
