@@ -1208,7 +1208,7 @@ def get_video_analysis(video_id):
     try:
         # Fetch all visual frames for this video, ordered by timestamp
         frames_resp = supabase.table('visual_frames').select(
-            'timestamp, visual_description, emotion, scene_summary, ocr_text'
+            'timestamp, visual_description, emotion, ocr_text'
         ).eq('video_id', video_id).order('timestamp').execute()
         
         if not frames_resp.data:
