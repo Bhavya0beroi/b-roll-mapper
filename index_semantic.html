@@ -1449,7 +1449,7 @@
         async function playVideoFromLibrary(video) {
             const videoUrl = `${API_BASE}/uploads/${video.filename}`;
             const isGif = video.filename.toLowerCase().endsWith('.gif');
-            
+
             // Show GIF player or video player based on file type
             if (isGif) {
                 videoPlayer.classList.add('hidden');
@@ -1462,14 +1462,35 @@
                 videoPlayer.currentTime = 0;
                 videoPlayer.play();
             }
-            
+
             document.getElementById('modalTitle').textContent = video.filename;
-            document.getElementById('clipTranscript').textContent = isGif 
-                ? `Animated GIF • ${video.clip_count} searchable segments`
-                : `Full video - ${video.clip_count} clips available`;
-            document.getElementById('timeInfo').textContent = 
-                `Duration: ${formatTime(video.duration)} • ${video.clip_count} searchable segments`;
             
+            // Fetch ALL visual frames for complete analysis
+            let fullDescription = `Full video - ${video.clip_count} clips available`;
+            try {
+                const framesResponse = await fetch(`${API_BASE}/video-analysis/${video.id}`);
+                if (framesResponse.ok) {
+                    const framesData = await framesResponse.json();
+                    if (framesData.frames && framesData.frames.length > 0) {
+                        // Sort frames by timestamp and concatenate
+                        const sortedFrames = framesData.frames.sort((a, b) => a.timestamp - b.timestamp);
+                        
+                        fullDescription = sortedFrames.map((frame, idx) => {
+                            const timeStr = formatTime(frame.timestamp);
+                            return `[${timeStr}] ${frame.visual_description}`;
+                        }).join('\n\n');
+                        
+                        console.log(`📊 Loaded ${sortedFrames.length} frames for library video`);
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not load full video analysis:', error);
+            }
+            
+            document.getElementById('clipTranscript').textContent = fullDescription;
+            document.getElementById('timeInfo').textContent =
+                `Duration: ${formatTime(video.duration)} • ${video.clip_count} searchable segments`;
+
             videoModal.classList.remove('hidden');
             videoModal.classList.add('flex');
         }
