@@ -1069,12 +1069,17 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter, categori
                     'similarity': sim,
                     'custom_tags': custom_tags,
                     'desc': desc,
-                    'ocr_text': ocr_text
+                    'ocr_text': ocr_text,
+                    'tags': tags,
+                    'emotion_tags': emotion_tags,
+                    'laugh_tags': laugh_tags,
+                    'contextual_tags': contextual_tags,
+                    'character_tags': character_tags,
+                    'semantic_tags': semantic_tags
                 }
             continue  # Don't add to results yet
         
-        # Long videos (>= 30s): add all frames as before
-        sim = sim
+        # Long videos (>= 30s): add all frames as separate results
 
         if detected_series and series_movie and detected_series not in (series_movie or '').lower():
             continue
