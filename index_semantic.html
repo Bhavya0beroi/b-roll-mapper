@@ -365,6 +365,45 @@
         </div>
     </div>
 
+    <!-- Intro Style Selection Modal -->
+    <div id="introStyleModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
+            <h3 class="text-2xl font-semibold text-gray-900 dark:text-white mb-6">Select Intro Style</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">Choose the type of intro:</p>
+            
+            <div class="space-y-3 mb-6">
+                <button id="introAnimationBtn" class="w-full px-4 py-3 rounded-lg text-left transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
+                    <div class="font-semibold">Animations/B-roll + Narrative</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Animated graphics with voiceover</div>
+                </button>
+                
+                <button id="introLocationBtn" class="w-full px-4 py-3 rounded-lg text-left transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
+                    <div class="font-semibold">Location-based/Documentary style</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">On-location establishing shots</div>
+                </button>
+                
+                <button id="introVlogBtn" class="w-full px-4 py-3 rounded-lg text-left transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
+                    <div class="font-semibold">Vlog style (PTC + action)</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Presenter to camera with activity</div>
+                </button>
+                
+                <button id="introColdOpenBtn" class="w-full px-4 py-3 rounded-lg text-left transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
+                    <div class="font-semibold">Cold open</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Direct into action/content</div>
+                </button>
+                
+                <button id="introNarrationBtn" class="w-full px-4 py-3 rounded-lg text-left transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
+                    <div class="font-semibold">Narration + Cinematic</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Voiceover with cinematic visuals</div>
+                </button>
+            </div>
+            
+            <button id="closeIntroStyleModal" class="w-full px-6 py-3 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors">
+                ← Back
+            </button>
+        </div>
+    </div>
+
     <!-- Category Selection Modal -->
     <div id="categoryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
@@ -397,7 +436,15 @@
                     <span class="text-2xl">🎬</span>
                     <div>
                         <div class="font-semibold">Intro</div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400">YouTube/Movie intros (max 60 seconds)</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">YouTube/Movie intros - choose style next</div>
+                    </div>
+                </button>
+                
+                <button id="categoryPhotoBtn" class="w-full px-6 py-4 rounded-lg text-left font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center gap-3">
+                    <span class="text-2xl">📸</span>
+                    <div>
+                        <div class="font-semibold">Photo</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Images, screenshots, stills</div>
                     </div>
                 </button>
             </div>
@@ -421,6 +468,7 @@
         
         const uploadZone = document.getElementById('uploadZone');
         const fileInput = document.getElementById('fileInput');
+        fileInput.accept = 'video/*,image/*,.gif,.jpg,.jpeg,.png'; // Accept videos and images
         const searchInput = document.getElementById('searchInput');
         const resultsSection = document.getElementById('resultsSection');
         const resultsGrid = document.getElementById('resultsGrid');
@@ -1929,7 +1977,13 @@
         categoryVideosBtn.addEventListener('click', () => selectCategory('Videos', categoryVideosBtn));
         categoryGIFsBtn.addEventListener('click', () => selectCategory('GIFs', categoryGIFsBtn));
         categoryPSBtn.addEventListener('click', () => selectCategory('PS', categoryPSBtn));
-        categoryIntroBtn.addEventListener('click', () => selectCategory('Intro', categoryIntroBtn));
+        categoryPhotoBtn.addEventListener('click', () => selectCategory('Photo', categoryPhotoBtn));
+        
+        // Intro requires style selection
+        categoryIntroBtn.addEventListener('click', () => {
+            categoryModal.classList.add('hidden');
+            introStyleModal.classList.remove('hidden');
+        });
         
         // Audio/Visual Toggle
         const toggleVisual = document.getElementById('toggleVisual');

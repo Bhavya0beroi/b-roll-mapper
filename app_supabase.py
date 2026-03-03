@@ -58,7 +58,7 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
 # Configuration
 THUMBNAILS_FOLDER = 'thumbnails'
 FRAMES_FOLDER = 'frames'
-ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv', 'webm', 'gif'}
+ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv', 'webm', 'gif', 'jpg', 'jpeg', 'png'}
 CHUNK_DURATION = 15
 FRAME_INTERVAL = 10
 
