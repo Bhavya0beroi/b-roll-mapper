@@ -276,14 +276,24 @@ def analyze_frame_with_vision(frame_path, transcript_context='', filename_hint='
             context_info += f"\nFilename Hint (may contain movie name): {clean_hint}\n"
         
         # Add category-specific instructions
+        INTRO_STYLE_LABELS = {
+            'Intro': 'YouTube/Movie Intro (general)',
+            'Intro-Animation': 'Animations/B-roll + Narrative intro (animated graphics, motion graphics, b-roll montage with voiceover)',
+            'Intro-Location': 'Location-based/Documentary style intro (on-location establishing shots, documentary b-roll, real-world environment)',
+            'Intro-Vlog': 'Vlog style intro (PTC presenter-to-camera, direct address, action shots, personal vlog)',
+            'Intro-ColdOpen': 'Cold open intro (direct-into-action, no titles, hook scene, no introduction)',
+            'Intro-Narration': 'Narration + Cinematic intro (voiceover narration with cinematic wide shots, cinematic b-roll)',
+        }
         category_instructions = ""
-        if category == 'Intro':
-            category_instructions = """
+        if category in INTRO_STYLE_LABELS:
+            style_label = INTRO_STYLE_LABELS[category]
+            category_instructions = f"""
 ⚠️ INTRO CATEGORY - ULTRA-DETAILED ANALYSIS REQUIRED:
-This is a YouTube/movie intro (max 60 seconds). Provide comprehensive technical analysis.
+INTRO STYLE: {style_label}
+This is a YouTube/movie intro (max 60 seconds). Provide comprehensive technical analysis that explicitly reflects the intro style above.
 
 FORMAT YOUR VISUAL DESCRIPTION AS:
-[CAMERA] → [SUBJECT] → [ACTION] → [OBJECTS] → [SETTING] → [LIGHTING/STYLE]
+[INTRO STYLE: {style_label}] [CAMERA] → [SUBJECT] → [ACTION] → [OBJECTS] → [SETTING] → [LIGHTING/STYLE]
 
 MANDATORY SECTIONS IN VISUAL DESCRIPTION:
 
@@ -322,13 +332,19 @@ MANDATORY SECTIONS IN VISUAL DESCRIPTION:
    - Production style indicators
 
 EXAMPLE GOOD OUTPUT:
-"[CAMERA: Medium shot, eye-level angle, static] Young Indian man in his late 20s wearing a teal polo shirt with mic clipped on collar, sitting on a beige/cream L-shaped fabric sofa in a modern indoor living room. He's making hand gestures near his chin while speaking directly to camera with animated, friendly expression. [OBJECTS: Behind him - tall green potted plant (monstera) in left corner, white/cream decorative wall frames, wooden furniture visible at edges. Floor has light-colored carpet/rug. ZERO1 channel logo watermark in top-right corner.] [SETTING: Well-lit modern home studio setup with minimalist aesthetic, neutral color palette - beige sofa, cream walls, natural wood tones.] [LIGHTING: Soft, diffused lighting from front (likely ring light or softbox), warm color temperature creating inviting atmosphere, even exposure with no harsh shadows, professional YouTube production quality.]"
+"[INTRO STYLE: {style_label}] [CAMERA: Medium shot, eye-level angle, static] Young Indian man in his late 20s wearing a teal polo shirt with mic clipped on collar, sitting on a beige/cream L-shaped fabric sofa in a modern indoor living room. He's making hand gestures near his chin while speaking directly to camera with animated, friendly expression. [OBJECTS: Behind him - tall green potted plant (monstera) in left corner, white/cream decorative wall frames, wooden furniture visible at edges. Floor has light-colored carpet/rug. ZERO1 channel logo watermark in top-right corner.] [SETTING: Well-lit modern home studio setup with minimalist aesthetic, neutral color palette - beige sofa, cream walls, natural wood tones.] [LIGHTING: Soft, diffused lighting from front (likely ring light or softbox), warm color temperature creating inviting atmosphere, even exposure with no harsh shadows, professional YouTube production quality.]"
 
-Be SPECIFIC not generic!
+Be SPECIFIC not generic! Always include the intro style label in your output.
 """
         elif category == 'Videos':
             category_instructions = """
 VIDEOS CATEGORY - Standard detailed analysis with focus on emotion and narrative.
+"""
+        elif category == 'Photo':
+            category_instructions = """
+PHOTO/SCREENSHOT CATEGORY - Analyze this static image or screenshot in detail.
+Describe all visible elements: people, objects, text, UI elements, setting, colors, composition.
+If it is a screenshot, describe the app/website/interface shown and any readable text.
 """
 
         prompt = f"""You are an expert video analyst. Study this frame CAREFULLY and use ALL context clues.
@@ -710,7 +726,19 @@ def process_video(video_path, filename, category='Videos'):
             semantic_tags = generated['semantic_tags']
 
         clean_title = os.path.splitext(filename)[0].replace('-', ' ').replace('_', ' ')
-        combined_text = f"Title: {clean_title}. {description}. Emotion: {emotion}."
+        # Prepend intro-style keywords so style-based searches rank this video first
+        INTRO_STYLE_KEYWORDS = {
+            'Intro-Animation': 'Animations B-roll Narrative intro animated graphics motion graphics voiceover montage',
+            'Intro-Location': 'Location-based Documentary style intro on-location establishing shots documentary b-roll real-world environment',
+            'Intro-Vlog': 'Vlog style PTC presenter-to-camera direct address action shots personal vlog intro',
+            'Intro-ColdOpen': 'Cold open intro direct-into-action hook scene no titles no introduction cold open',
+            'Intro-Narration': 'Narration Cinematic intro voiceover narration cinematic wide shots cinematic b-roll',
+            'Intro': 'YouTube intro movie intro opening sequence',
+        }
+        intro_prefix = ''
+        if category in INTRO_STYLE_KEYWORDS:
+            intro_prefix = f"[Intro Style: {INTRO_STYLE_KEYWORDS[category]}] "
+        combined_text = f"{intro_prefix}Title: {clean_title}. {description}. Emotion: {emotion}."
         for fld, val in [('deep_emotions', deep_emotions), ('scene_context', scene_context), ('people_description', people_description),
                          ('environment', environment), ('series_movie', series_movie), ('emotion_tags', emotion_tags),
                          ('laugh_tags', laugh_tags), ('contextual_tags', contextual_tags), ('character_tags', character_tags),
@@ -843,8 +871,11 @@ def upload_file():
         category = request.form.get('category', 'Videos')
         print(f"📋 Category from form: '{category}'")
         
-        # Allow all valid categories including Intro
-        if category not in ['Videos', 'GIFs', 'PS', 'Intro']:
+        # Allow all valid categories including Intro sub-styles and Photo
+        VALID_CATEGORIES = ['Videos', 'GIFs', 'PS', 'Intro',
+                            'Intro-Animation', 'Intro-Location', 'Intro-Vlog',
+                            'Intro-ColdOpen', 'Intro-Narration', 'Photo']
+        if category not in VALID_CATEGORIES:
             print(f"⚠️ Invalid category '{category}', defaulting to 'Videos'")
             category = 'Videos'
         
@@ -951,9 +982,9 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter, categori
                 else:
                     expanded_categories.append(cat)
             
-            v_query = supabase.table('videos').select('id, filename, custom_tags, category').in_('category', expanded_categories)
+            v_query = supabase.table('videos').select('id, filename, custom_tags, category, duration').in_('category', expanded_categories)
         else:
-            v_query = supabase.table('videos').select('id, filename, custom_tags, category')
+            v_query = supabase.table('videos').select('id, filename, custom_tags, category, duration')
         v_resp = v_query.execute()
     except Exception as e:
         # If category column doesn't exist, fetch without it
@@ -1080,6 +1111,18 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter, categori
                 if tag_fld and query_lower.replace('-', ' ').replace('_', ' ') in tag_fld.lower().replace('-', ' ').replace('_', ' '):
                     exact_boost = max(exact_boost, 0.40)
                     break
+            # Boost intro-style matches: searching "vlog intro" boosts Intro-Vlog videos, etc.
+            video_category = (v_map.get(vf['video_id']) or {}).get('category', '')
+            INTRO_STYLE_SEARCH_TERMS = {
+                'Intro-Animation': ['animation', 'b-roll', 'animated', 'motion graphic', 'montage', 'narrative'],
+                'Intro-Location': ['location', 'documentary', 'establishing shot', 'on location', 'real world'],
+                'Intro-Vlog': ['vlog', 'ptc', 'presenter', 'presenter to camera', 'direct address', 'talking to camera'],
+                'Intro-ColdOpen': ['cold open', 'cold-open', 'hook', 'direct into action'],
+                'Intro-Narration': ['narration', 'narrate', 'cinematic', 'voiceover', 'voice over'],
+            }
+            if video_category in INTRO_STYLE_SEARCH_TERMS:
+                if any(term in query_lower for term in INTRO_STYLE_SEARCH_TERMS[video_category]):
+                    exact_boost = max(exact_boost, 0.45)
 
         sim = min(1.0, sim + exact_boost)
         
@@ -1143,6 +1186,50 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter, categori
                 'contextual_tags': contextual_tags or '',
                 'character_tags': character_tags or '',
                 'semantic_tags': semantic_tags or '',
+                'category': video_category
+            })
+
+    # Add best frames from short videos (< 30s deduplication)
+    for video_id, best in video_best_frames.items():
+        vf = best['vf']
+        sim = best['similarity']
+
+        if detected_series and vf.get('series_movie') and detected_series not in (vf.get('series_movie') or '').lower():
+            continue
+        if detected_actor and vf.get('actors'):
+            if not any(v in (vf.get('actors') or '').lower() for v in detected_actor):
+                continue
+
+        if sim > 0.30:
+            emo = vf.get('emotion') or 'neutral'
+            desc = best['desc']
+            ocr_text = best['ocr_text']
+            display = f"[Visual - {emo.title()}] {desc}" if emo != 'neutral' else f"[Visual] {desc}"
+            if ocr_text:
+                display += f" | Text: \"{ocr_text}\""
+            vf_fname = vf.get('filename') or (v_map.get(vf['video_id']) or {}).get('filename', '')
+            video_category = (v_map.get(vf['video_id']) or {}).get('category', 'Videos')
+            results.append({
+                'id': f"visual_{vf['id']}",
+                'video_id': vf['video_id'],
+                'filename': vf_fname,
+                'timestamp': vf['timestamp'],
+                'start_time': vf['timestamp'],
+                'end_time': vf['timestamp'] + 10,
+                'duration': 10.0,
+                'text': display,
+                'similarity': float(sim),
+                'source': 'visual',
+                'emotion': emo,
+                'ocr_text': ocr_text or '',
+                'tags': best['tags'] or '',
+                'genres': vf.get('genres') or '',
+                'custom_tags': best['custom_tags'] or '',
+                'emotion_tags': best['emotion_tags'] or '',
+                'laugh_tags': best['laugh_tags'] or '',
+                'contextual_tags': best['contextual_tags'] or '',
+                'character_tags': best['character_tags'] or '',
+                'semantic_tags': best['semantic_tags'] or '',
                 'category': video_category
             })
 
@@ -1339,7 +1426,18 @@ def reprocess_video(video_id):
 
             desc = str(analysis.get('description', ''))
             clean_title = os.path.splitext(filename)[0].replace('-', ' ').replace('_', ' ')
-            combined = f"Title: {clean_title}. {desc}. Emotion: {analysis.get('emotion', '')}."
+            INTRO_STYLE_KEYWORDS = {
+                'Intro-Animation': 'Animations B-roll Narrative intro animated graphics motion graphics voiceover montage',
+                'Intro-Location': 'Location-based Documentary style intro on-location establishing shots documentary b-roll real-world environment',
+                'Intro-Vlog': 'Vlog style PTC presenter-to-camera direct address action shots personal vlog intro',
+                'Intro-ColdOpen': 'Cold open intro direct-into-action hook scene no titles no introduction cold open',
+                'Intro-Narration': 'Narration Cinematic intro voiceover narration cinematic wide shots cinematic b-roll',
+                'Intro': 'YouTube intro movie intro opening sequence',
+            }
+            intro_prefix = ''
+            if category in INTRO_STYLE_KEYWORDS:
+                intro_prefix = f"[Intro Style: {INTRO_STYLE_KEYWORDS[category]}] "
+            combined = f"{intro_prefix}Title: {clean_title}. {desc}. Emotion: {analysis.get('emotion', '')}."
             for f, val in [('deep_emotions', analysis.get('deep_emotions')), ('scene_context', analysis.get('scene_context')), ('emotion_tags', emotion_tags), ('laugh_tags', laugh_tags), ('contextual_tags', contextual_tags), ('character_tags', character_tags), ('semantic_tags', semantic_tags)]:
                 if val:
                     combined += f" {f}: {val}."

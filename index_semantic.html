@@ -122,11 +122,11 @@
         <!-- Upload Section -->
         <section class="mb-8">
             <div class="upload-zone bg-white dark:bg-dark-card border-2 border-dashed border-blue-500 rounded-lg p-8 text-center cursor-pointer" id="uploadZone">
-                <input type="file" id="fileInput" accept="video/*,.gif,image/gif" multiple class="hidden">
+                <input type="file" id="fileInput" accept="video/*,image/*,.gif,.jpg,.jpeg,.png" multiple class="hidden">
                 <p class="text-lg mb-2">
                     <span class="text-blue-500 font-semibold">Click to upload</span> or drag and drop
                 </p>
-                <p class="text-sm text-gray-500">MP4, MOV, AVI, MKV, WEBM, GIF</p>
+                <p class="text-sm text-gray-500">MP4, MOV, AVI, MKV, WEBM, GIF • JPG, PNG (photos/screenshots)</p>
             </div>
             
             <!-- Upload Progress -->
@@ -296,6 +296,9 @@
                         </button>
                         <button id="catIntro" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600" onclick="filterLibraryByCategory('Intro')">
                             🎬 Intro
+                        </button>
+                        <button id="catPhoto" class="category-pill px-4 py-2 rounded-full text-sm font-medium transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600" onclick="filterLibraryByCategory('Photo')">
+                            📸 Photos
                         </button>
                     </div>
                 </div>
@@ -689,8 +692,8 @@
                     librarySection.classList.remove('hidden');
                 }
 
-                // Filter by current category (handle videos without category as 'Videos')
-                const filtered = data.videos.filter(v => (v.category || 'Videos') === currentLibraryCategory);
+                // Filter by current category using shared helper (handles Intro sub-styles, Photo, etc.)
+                const filtered = data.videos.filter(v => matchesCategory(v.category, currentLibraryCategory));
                 
                 filtered.forEach(video => {
                     const card = createVideoCard(video);
@@ -1417,31 +1420,31 @@
         async function playClip(result, resultIndex = -1) {
             currentResultIndex = resultIndex;
             const videoUrl = `${API_BASE}/uploads/${result.filename}?v=${Date.now()}`;
-            const isGif = result.filename.toLowerCase().endsWith('.gif');
+            const fname = result.filename.toLowerCase();
+            const isGif = fname.endsWith('.gif');
+            const isImage = /\.(jpg|jpeg|png|webp)$/.test(fname);
             const videoLoading = document.getElementById('videoLoading');
 
-            // Show GIF player or video player based on file type
-            if (isGif) {
+            if (isGif || isImage) {
+                // Show static image / GIF — never try to play as video
                 videoPlayer.classList.add('hidden');
+                videoPlayer.src = '';
+                videoLoading.classList.add('hidden');
                 gifPlayer.classList.remove('hidden');
                 gifPlayer.src = videoUrl;
             } else {
                 gifPlayer.classList.add('hidden');
+                gifPlayer.src = '';
                 videoPlayer.classList.remove('hidden');
 
-                // Show loading indicator
                 videoLoading.classList.remove('hidden');
-
                 videoPlayer.src = videoUrl;
                 videoPlayer.currentTime = result.start_time;
 
-                // Hide loading when video can play
                 videoPlayer.oncanplay = () => {
                     videoLoading.classList.add('hidden');
                     videoPlayer.play();
                 };
-
-                // Also hide loading on error
                 videoPlayer.onerror = () => {
                     videoLoading.classList.add('hidden');
                     alert('Error loading video. Please try again.');
@@ -1451,35 +1454,30 @@
             document.getElementById('modalTitle').textContent = result.filename;
             
             // Fetch ALL visual frames for this video to show complete analysis
-            let fullDescription = result.text; // Default to single result text
+            let fullDescription = result.text;
             try {
                 const framesResponse = await fetch(`${API_BASE}/video-analysis/${result.video_id}`);
                 if (framesResponse.ok) {
                     const framesData = await framesResponse.json();
                     if (framesData.frames && framesData.frames.length > 0) {
-                        // Sort frames by timestamp
                         const sortedFrames = framesData.frames.sort((a, b) => a.timestamp - b.timestamp);
-                        
-                        // Concatenate all frame descriptions
-                        fullDescription = sortedFrames.map((frame, idx) => {
-                            const timeStr = formatTime(frame.timestamp);
+                        fullDescription = sortedFrames.map((frame) => {
+                            const timeStr = isImage ? '📸' : formatTime(frame.timestamp);
                             return `[${timeStr}] ${frame.visual_description}`;
                         }).join('\n\n');
-                        
-                        console.log(`📊 Loaded ${sortedFrames.length} frames for complete analysis`);
                     }
                 }
             } catch (error) {
                 console.warn('Could not load full video analysis:', error);
-                // Fall back to single result text
             }
             
             document.getElementById('clipTranscript').textContent = fullDescription;
-            document.getElementById('timeInfo').textContent = isGif
+            document.getElementById('timeInfo').textContent = isImage
+                ? `📸 Photo / Screenshot`
+                : isGif
                 ? `Animated GIF • Duration: ${result.duration.toFixed(1)}s`
                 : `Playing from ${formatTime(result.start_time)} to ${formatTime(result.end_time)} (${result.duration.toFixed(1)}s)`;
 
-            // Update navigation buttons
             updateNavigationButtons();
 
             videoModal.classList.remove('hidden');
@@ -1505,18 +1503,21 @@
             }
         }
         
-        // Play video from library (starts at beginning)
+        // Play video/photo from library
         async function playVideoFromLibrary(video) {
             const videoUrl = `${API_BASE}/uploads/${video.filename}`;
-            const isGif = video.filename.toLowerCase().endsWith('.gif');
+            const fname = video.filename.toLowerCase();
+            const isGif = fname.endsWith('.gif');
+            const isImage = /\.(jpg|jpeg|png|webp)$/.test(fname);
 
-            // Show GIF player or video player based on file type
-            if (isGif) {
+            if (isGif || isImage) {
                 videoPlayer.classList.add('hidden');
+                videoPlayer.src = '';
                 gifPlayer.classList.remove('hidden');
                 gifPlayer.src = videoUrl;
             } else {
                 gifPlayer.classList.add('hidden');
+                gifPlayer.src = '';
                 videoPlayer.classList.remove('hidden');
                 videoPlayer.src = videoUrl;
                 videoPlayer.currentTime = 0;
@@ -1525,22 +1526,19 @@
 
             document.getElementById('modalTitle').textContent = video.filename;
             
-            // Fetch ALL visual frames for complete analysis
-            let fullDescription = `Full video - ${video.clip_count} clips available`;
+            let fullDescription = isImage
+                ? `📸 Photo / Screenshot`
+                : `Full video - ${video.clip_count} clips available`;
             try {
                 const framesResponse = await fetch(`${API_BASE}/video-analysis/${video.id}`);
                 if (framesResponse.ok) {
                     const framesData = await framesResponse.json();
                     if (framesData.frames && framesData.frames.length > 0) {
-                        // Sort frames by timestamp and concatenate
                         const sortedFrames = framesData.frames.sort((a, b) => a.timestamp - b.timestamp);
-                        
-                        fullDescription = sortedFrames.map((frame, idx) => {
-                            const timeStr = formatTime(frame.timestamp);
+                        fullDescription = sortedFrames.map((frame) => {
+                            const timeStr = isImage ? '📸' : formatTime(frame.timestamp);
                             return `[${timeStr}] ${frame.visual_description}`;
                         }).join('\n\n');
-                        
-                        console.log(`📊 Loaded ${sortedFrames.length} frames for library video`);
                     }
                 }
             } catch (error) {
@@ -1548,29 +1546,30 @@
             }
             
             document.getElementById('clipTranscript').textContent = fullDescription;
-            document.getElementById('timeInfo').textContent =
-                `Duration: ${formatTime(video.duration)} • ${video.clip_count} searchable segments`;
+            document.getElementById('timeInfo').textContent = isImage
+                ? `📸 Photo / Screenshot`
+                : isGif
+                ? `Animated GIF • Duration: ${formatTime(video.duration)}`
+                : `Duration: ${formatTime(video.duration)} • ${video.clip_count} searchable segments`;
 
             videoModal.classList.remove('hidden');
             videoModal.classList.add('flex');
         }
 
-        // Close modal
-        document.getElementById('closeModal').addEventListener('click', () => {
+        function closeVideoModal() {
             videoModal.classList.add('hidden');
             videoModal.classList.remove('flex');
             videoPlayer.pause();
+            videoPlayer.src = '';
             gifPlayer.src = '';
-        });
+            gifPlayer.classList.add('hidden');
+            videoPlayer.classList.remove('hidden'); // reset for next open
+        }
 
-        // Close modal on background click
+        document.getElementById('closeModal').addEventListener('click', closeVideoModal);
+
         videoModal.addEventListener('click', (e) => {
-            if (e.target === videoModal) {
-                videoModal.classList.add('hidden');
-                videoModal.classList.remove('flex');
-                videoPlayer.pause();
-                gifPlayer.src = '';
-            }
+            if (e.target === videoModal) closeVideoModal();
         });
         
         // Previous/Next navigation
@@ -1952,6 +1951,7 @@
         const introColdOpenBtn = document.getElementById('introColdOpenBtn');
         const introNarrationBtn = document.getElementById('introNarrationBtn');
         let selectedCategory = null;
+        let selectedIntroStyle = null;
         let pendingFiles = null;
         
         function showCategoryModal(files) {
@@ -1959,7 +1959,7 @@
             selectedCategory = null;
             categoryModal.classList.remove('hidden');
             // Reset button styles
-            [categoryVideosBtn, categoryGIFsBtn, categoryPSBtn, categoryIntroBtn].forEach(btn => {
+            [categoryVideosBtn, categoryGIFsBtn, categoryPSBtn, categoryIntroBtn, categoryPhotoBtn].forEach(btn => {
                 btn.classList.remove('bg-blue-500', 'text-white');
                 btn.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
             });
@@ -1968,7 +1968,7 @@
         function selectCategory(category, button) {
             selectedCategory = category;
             // Update button styles
-            [categoryVideosBtn, categoryGIFsBtn, categoryPSBtn, categoryIntroBtn].forEach(btn => {
+            [categoryVideosBtn, categoryGIFsBtn, categoryPSBtn, categoryIntroBtn, categoryPhotoBtn].forEach(btn => {
                 btn.classList.remove('bg-blue-500', 'text-white');
                 btn.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
             });
@@ -2087,6 +2087,15 @@
         }
         
         // Category filtering in Library
+        // Shared category matcher — handles Intro sub-styles and exact match for all others
+        function matchesCategory(videoCategory, filterCategory) {
+            const cat = videoCategory || 'Videos';
+            if (filterCategory === 'Intro') {
+                return cat === 'Intro' || cat.startsWith('Intro-');
+            }
+            return cat === filterCategory;
+        }
+
         function filterLibraryByCategory(category) {
             currentLibraryCategory = category;
             console.log(`🎯 Filtering library by category: ${category}`);
@@ -2107,18 +2116,7 @@
                 activeBtn.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
             }
             
-            // Filter and display with better category matching
-            const filtered = allLibraryVideos.filter(v => {
-                const videoCategory = v.category || 'Videos';
-                
-                // Handle Intro sub-categories
-                if (category === 'Intro') {
-                    return videoCategory === 'Intro' || videoCategory.startsWith('Intro-');
-                }
-                
-                return videoCategory === category;
-            });
-            
+            const filtered = allLibraryVideos.filter(v => matchesCategory(v.category, category));
             console.log(`📊 Found ${filtered.length} videos in "${category}" category`);
             displayLibraryVideos(filtered);
         }
