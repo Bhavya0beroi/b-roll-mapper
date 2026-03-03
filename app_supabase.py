@@ -781,57 +781,91 @@ def upload_file():
     Upload endpoint - FAST RETURN strategy
     Accepts file, saves to temp storage, starts background processing, returns immediately
     """
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    
-    # Get category from form data (default to 'Videos' if not provided)
-    category = request.form.get('category', 'Videos')
-    # Allow all valid categories including Intro
-    if category not in ['Videos', 'GIFs', 'PS', 'Intro']:
-        category = 'Videos'
-    
-    print(f"✅ Upload received: {file.filename} → Category: {category}")
-
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-
-        # Check if video already exists and delete it
-        existing = supabase.table('videos').select('id').eq('filename', filename).execute()
-        if existing.data:
-            video_id = existing.data[0]['id']
-            print(f"🔄 Deleting existing video: {filename} (ID: {video_id})")
-            supabase.table('clips').delete().eq('video_id', video_id).execute()
-            supabase.table('visual_frames').delete().eq('video_id', video_id).execute()
-            supabase.table('videos').delete().eq('id', video_id).execute()
-
-        # Save to temp file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as tmp:
-            file.save(tmp.name)
-            tmp_path = tmp.name
-
-        print(f"💾 Saved to temp: {tmp_path} ({os.path.getsize(tmp_path) / 1024 / 1024:.1f}MB)")
+    try:
+        print(f"\n{'='*60}\n📥 UPLOAD REQUEST RECEIVED\n{'='*60}")
         
-        # Start background processing thread
-        thread = threading.Thread(
-            target=process_video_async,
-            args=(tmp_path, filename, category),
-            daemon=True
-        )
-        thread.start()
-        print(f"🚀 Background processing started for: {filename}")
+        if 'file' not in request.files:
+            print("❌ ERROR: No 'file' in request.files")
+            return jsonify({'error': 'No file part'}), 400
+            
+        file = request.files['file']
+        print(f"✅ File object received: {file.filename}")
         
-        # Return SUCCESS immediately - video will process in background
-        return jsonify({
-            'success': True, 
-            'filename': filename,
-            'message': f'Upload started! Processing {filename} in background...',
-            'category': category
-        })
+        if file.filename == '':
+            print("❌ ERROR: Empty filename")
+            return jsonify({'error': 'No selected file'}), 400
+        
+        # Get category from form data (default to 'Videos' if not provided)
+        category = request.form.get('category', 'Videos')
+        print(f"📋 Category from form: '{category}'")
+        
+        # Allow all valid categories including Intro
+        if category not in ['Videos', 'GIFs', 'PS', 'Intro']:
+            print(f"⚠️ Invalid category '{category}', defaulting to 'Videos'")
+            category = 'Videos'
+        
+        print(f"✅ Final category: {category}")
 
-    return jsonify({'error': 'Invalid file type. Allowed: mp4, mov, avi, mkv, webm, gif'}), 400
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            print(f"🔒 Secured filename: {filename}")
+
+            try:
+                # Check if video already exists and delete it
+                print(f"🔍 Checking for existing video: {filename}")
+                existing = supabase.table('videos').select('id').eq('filename', filename).execute()
+                if existing.data:
+                    video_id = existing.data[0]['id']
+                    print(f"🔄 Found existing video (ID: {video_id}), deleting old data...")
+                    supabase.table('clips').delete().eq('video_id', video_id).execute()
+                    supabase.table('visual_frames').delete().eq('video_id', video_id).execute()
+                    supabase.table('videos').delete().eq('id', video_id).execute()
+                    print(f"✅ Old data deleted")
+                else:
+                    print(f"✅ No existing video found, proceeding with new upload")
+            except Exception as db_error:
+                print(f"⚠️ Database check error (non-fatal): {str(db_error)}")
+
+            # Save to temp file
+            print(f"💾 Saving file to temp storage...")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as tmp:
+                file.save(tmp.name)
+                tmp_path = tmp.name
+
+            file_size_mb = os.path.getsize(tmp_path) / 1024 / 1024
+            print(f"✅ Saved to temp: {tmp_path} ({file_size_mb:.1f}MB)")
+            
+            # Start background processing thread
+            print(f"🚀 Starting background thread for: {filename}")
+            thread = threading.Thread(
+                target=process_video_async,
+                args=(tmp_path, filename, category),
+                daemon=True
+            )
+            thread.start()
+            print(f"✅ Background thread started (Thread ID: {thread.ident})")
+            print(f"⚡ RETURNING SUCCESS IMMEDIATELY - Processing in background\n{'='*60}\n")
+            
+            # Return SUCCESS immediately - video will process in background
+            return jsonify({
+                'success': True, 
+                'filename': filename,
+                'message': f'Upload successful! AI analyzing {filename} in background...',
+                'category': category,
+                'file_size_mb': round(file_size_mb, 2)
+            })
+        else:
+            print(f"❌ ERROR: File not allowed or missing")
+            return jsonify({'error': 'Invalid file type. Allowed: mp4, mov, avi, mkv, webm, gif'}), 400
+            
+    except Exception as e:
+        print(f"\n{'='*60}\n❌ UPLOAD ENDPOINT CRASHED\n{'='*60}")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        print(f"{'='*60}\n")
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 
 def _run_search(query, query_embedding, emotions_filter, genres_filter, categories_filter=None):
