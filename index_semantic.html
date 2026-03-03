@@ -200,7 +200,13 @@
                         <option value="Videos">🎥 Videos</option>
                         <option value="GIFs">🖼️ GIFs</option>
                         <option value="PS">🧍 PS (Prateek Singh)</option>
-                        <option value="Intro">🎬 Intro</option>
+                        <option value="Intro">🎬 Intro (All Styles)</option>
+                        <option value="Intro-Animation">  ├─ Animation/B-roll</option>
+                        <option value="Intro-Location">  ├─ Location/Documentary</option>
+                        <option value="Intro-Vlog">  ├─ Vlog (PTC)</option>
+                        <option value="Intro-ColdOpen">  ├─ Cold Open</option>
+                        <option value="Intro-Narration">  └─ Narration/Cinematic</option>
+                        <option value="Photo">📸 Photo</option>
                     </select>
                 </div>
                 
@@ -916,7 +922,13 @@
             // Filter by category first
             let categoryFiltered = results;
             if (selectedCategory !== 'all') {
-                categoryFiltered = results.filter(r => r.category === selectedCategory);
+                categoryFiltered = results.filter(r => {
+                    // Handle "Intro" matching all Intro-* styles
+                    if (selectedCategory === 'Intro') {
+                        return r.category === 'Intro' || (r.category && r.category.startsWith('Intro-'));
+                    }
+                    return r.category === selectedCategory;
+                });
                 console.log(`📁 Filtered by category "${selectedCategory}":`, categoryFiltered.length, 'items');
             }
             
