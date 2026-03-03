@@ -255,16 +255,52 @@ def analyze_frame_with_vision(frame_path, transcript_context='', filename_hint='
         category_instructions = ""
         if category == 'Intro':
             category_instructions = """
-⚠️ INTRO CATEGORY - SPECIAL FOCUS REQUIRED:
-This is a YouTube creator intro (max 30 seconds). PRIORITIZE:
-1. CAMERA MOVEMENT: Zoom, pan, tilt, dolly, tracking, handheld, static, rotation, crane shot
-2. CAMERA VIEW/ANGLE: POV, aerial, low angle, high angle, dutch angle, close-up, wide shot, medium shot
-3. LOCATION DETAILS: Indoor/outdoor, specific place (studio, office, street, park), time of day, weather
-4. OBJECTS: Props, branding elements, logos, text on screen, equipment visible
-5. LIGHTING: Natural/artificial, color temperature, lighting setup (key/fill/back), mood lighting
-6. COMPOSITION: Framing, rule of thirds, symmetry, leading lines, depth
+⚠️ INTRO CATEGORY - MAXIMUM DETAIL REQUIRED:
+This is a YouTube creator intro or movie intro (max 60 seconds). Provide EXTREMELY DETAILED analysis:
 
-For Intro category, describe camera techniques and location MORE than emotions.
+1. CAMERA WORK (CRITICAL):
+   - Camera movement: zoom, pan, tilt, dolly, tracking, handheld, static, rotation, crane shot, slider
+   - Camera angles: POV, aerial, drone shot, low angle, high angle, dutch angle, bird's eye
+   - Shot types: ECU (extreme close-up), close-up, medium shot, wide shot, establishing shot, two-shot
+   - Camera transitions: cut, fade, dissolve, wipe
+   
+2. LOCATION & SETTING (VERY DETAILED):
+   - Indoor/outdoor, specific location (studio, office, street, park, beach, mountain, city)
+   - Time of day, weather conditions, season
+   - Background details, architecture, landmarks
+   
+3. VISUAL STYLE & PRODUCTION:
+   - Lighting setup: natural/artificial, color temperature, key/fill/back lights, mood lighting
+   - Color grading: warm/cool tones, saturation, contrast, cinematic look
+   - Composition: rule of thirds, symmetry, leading lines, depth of field, framing
+   - Visual effects: overlays, graphics, animations, transitions
+   
+4. OBJECTS & PROPS (ENUMERATE ALL):
+   - Brand logos, products, equipment visible
+   - Text on screen, titles, graphics
+   - Props, furniture, decorations
+   
+5. MUSIC & AUDIO STYLE:
+   - Background music genre (electronic, orchestral, hip-hop, pop, cinematic, upbeat, dramatic)
+   - Music mood (energetic, calm, epic, emotional, mysterious)
+   - Sound design elements (whooshes, impacts, ambient sounds)
+   
+6. CREATOR IDENTIFICATION:
+   - Try to identify YouTube channel or content creator from visual style
+   - Look for watermarks, logos, channel branding
+   - Recognize famous YouTubers or influencers if visible
+   - Movie/show identification from production quality and style
+   
+7. CHARACTERS & PEOPLE:
+   - Number of people, gender, age range, clothing style
+   - Actions, poses, facial expressions
+   - Professional roles (host, presenter, actor, model)
+
+IMPORTANT: Be EXTREMELY detailed. 3-5 paragraphs for visual description is expected for Intro category.
+"""
+        elif category == 'Videos':
+            category_instructions = """
+VIDEOS CATEGORY - Standard detailed analysis with focus on emotion and narrative.
 """
 
         prompt = f"""You are an expert video analyst. Study this frame CAREFULLY and use ALL context clues.
