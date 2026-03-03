@@ -2097,7 +2097,13 @@
             
             // Filter and display with better category matching
             const filtered = allLibraryVideos.filter(v => {
-                const videoCategory = v.category || 'Videos'; // Default to Videos if missing
+                const videoCategory = v.category || 'Videos';
+                
+                // Handle Intro sub-categories
+                if (category === 'Intro') {
+                    return videoCategory === 'Intro' || videoCategory.startsWith('Intro-');
+                }
+                
                 return videoCategory === category;
             });
             
