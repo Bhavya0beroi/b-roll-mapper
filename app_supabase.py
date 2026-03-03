@@ -371,8 +371,8 @@ Semantic Tags (35-50 visible details: camera angle, camera movement, objects, cl
 
 Return ONLY valid JSON:
 {{
-  "visual_description": "CAMERA ANGLE + 3-4 detailed sentences: shot type + WHO (generic if unknown) + WHAT action + WHERE + facial expressions + emotional state + lighting/atmosphere",
-  "scene_summary": "2-3 sentences about deep emotional/psychological significance",
+  "visual_description": "[CAMERA: shot/angle/movement] Subject description + action. [OBJECTS: enumerate ALL visible items with colors/brands]. [SETTING: room type/style/colors]. [LIGHTING: sources/temperature/mood]",
+  "scene_summary": "Brief 1-2 sentences about emotional/narrative significance",
   "series_movie": "EXACT movie/series name from filename ONLY (empty string if not found)",
   "characters": "Character names from filename/transcript ONLY, otherwise use 'young man', 'woman', 'father' etc.",
   "basic_emotion": "sad/happy/laughing/crying/angry/surprised/fear/love/neutral/contemplative/anxious",
