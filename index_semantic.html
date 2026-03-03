@@ -324,20 +324,21 @@
         </section>
 
         <!-- Video Player Modal -->
-        <div id="videoModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50">
-            <div class="bg-dark-card rounded-lg p-6 max-w-4xl w-full mx-4 relative">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold" id="modalTitle">Video Player</h3>
-                    <button id="closeModal" class="text-gray-400 hover:text-white">
+        <div id="videoModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50 p-4">
+            <div class="bg-dark-card rounded-lg p-6 max-w-4xl w-full mx-auto relative flex flex-col" style="max-height:90vh;">
+                <!-- Header — never scrolls -->
+                <div class="flex justify-between items-center mb-4 flex-shrink-0">
+                    <h3 class="text-xl font-semibold truncate pr-4" id="modalTitle">Video Player</h3>
+                    <button id="closeModal" class="text-gray-400 hover:text-white flex-shrink-0">
                         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 </div>
                 
-                <!-- Video Container with Navigation Arrows Overlay -->
-                <div class="relative mb-4">
-                    <video id="videoPlayer" class="w-full rounded-lg" controls preload="metadata"></video>
+                <!-- Media area — constrained height, never grows beyond 45vh -->
+                <div class="relative mb-4 flex-shrink-0">
+                    <video id="videoPlayer" class="w-full rounded-lg bg-black" style="max-height:45vh;object-fit:contain;" controls preload="metadata"></video>
                     <div id="videoLoading" class="hidden absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center rounded-lg">
                         <div class="text-white text-center">
                             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-2"></div>
@@ -345,26 +346,30 @@
                         </div>
                     </div>
                     
-                    <!-- Previous Arrow (Left Side) -->
+                    <!-- Previous Arrow -->
                     <button id="prevResult" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-3 transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10" title="Previous result">
                         <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"/>
                         </svg>
                     </button>
                     
-                    <!-- Next Arrow (Right Side) -->
+                    <!-- Next Arrow -->
                     <button id="nextResult" class="absolute right-2 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 hover:bg-opacity-70 text-white rounded-full p-3 transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10" title="Next result">
                         <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/>
                         </svg>
                     </button>
                 </div>
-                <img id="gifPlayer" class="w-full rounded-lg mb-4 hidden" alt="GIF player">
-                <div class="bg-dark-bg rounded p-4 max-h-96 overflow-y-auto">
-                    <p class="text-sm text-gray-400 mb-2 sticky top-0 bg-dark-bg pb-2">Transcript:</p>
-                    <p id="clipTranscript" class="text-gray-200"></p>
+
+                <!-- Image / GIF player — max 45vh, centred, never distorted -->
+                <img id="gifPlayer" class="hidden rounded-lg mb-4 flex-shrink-0 mx-auto" style="max-height:45vh;max-width:100%;object-fit:contain;" alt="Media player">
+
+                <!-- Transcript — scrollable, fills remaining modal height -->
+                <div class="bg-dark-bg rounded p-4 overflow-y-auto flex-1 min-h-0">
+                    <p class="text-sm text-gray-400 mb-2 sticky top-0 bg-dark-bg pb-2 z-10">Transcript:</p>
+                    <p id="clipTranscript" class="text-gray-200 whitespace-pre-wrap text-sm leading-relaxed"></p>
                     <div class="mt-3 flex items-center text-sm text-gray-500">
-                        <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="h-4 w-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                         <span id="timeInfo">Clip window</span>
@@ -1419,6 +1424,10 @@
 
         async function playClip(result, resultIndex = -1) {
             currentResultIndex = resultIndex;
+            // Always clear stale handlers before starting a new load
+            videoPlayer.oncanplay = null;
+            videoPlayer.onerror = null;
+            videoPlayer.onended = null;
             const videoUrl = `${API_BASE}/uploads/${result.filename}?v=${Date.now()}`;
             const fname = result.filename.toLowerCase();
             const isGif = fname.endsWith('.gif');
@@ -1557,13 +1566,18 @@
         }
 
         function closeVideoModal() {
-            videoModal.classList.add('hidden');
-            videoModal.classList.remove('flex');
+            // Clear callbacks FIRST so setting src='' does not trigger onerror alert
+            videoPlayer.oncanplay = null;
+            videoPlayer.onerror = null;
+            videoPlayer.onended = null;
             videoPlayer.pause();
             videoPlayer.src = '';
+            videoPlayer.load(); // fully reset internal state
             gifPlayer.src = '';
             gifPlayer.classList.add('hidden');
             videoPlayer.classList.remove('hidden'); // reset for next open
+            videoModal.classList.add('hidden');
+            videoModal.classList.remove('flex');
         }
 
         document.getElementById('closeModal').addEventListener('click', closeVideoModal);
