@@ -17,6 +17,7 @@ import math
 import base64
 import tempfile
 import json
+import threading
 from pathlib import Path
 
 from flask import Flask, request, jsonify, send_from_directory, redirect
@@ -40,6 +41,10 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 app = Flask(__name__, static_folder='.')
 CORS(app)
+
+# Flask Configuration
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
 
 # Configuration
 THUMBNAILS_FOLDER = 'thumbnails'
@@ -755,10 +760,26 @@ def process_video_endpoint(video_id):
         return jsonify({'error': str(e)}), 500
 
 
+def process_video_async(tmp_path, filename, category):
+    """Background thread to process video - runs AFTER upload returns"""
+    try:
+        print(f"🎬 [BACKGROUND] Processing video: {filename} (Category: {category})")
+        process_video(tmp_path, filename, category)
+        print(f"✅ [BACKGROUND] Completed: {filename}")
+    except Exception as e:
+        print(f"❌ [BACKGROUND] Error processing {filename}: {str(e)}")
+    finally:
+        # Clean up temp file
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+            print(f"🗑️ [BACKGROUND] Cleaned up temp file: {tmp_path}")
+
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """
-    Upload endpoint - uploads video to Supabase Storage and processes with AI
+    Upload endpoint - FAST RETURN strategy
+    Accepts file, saves to temp storage, starts background processing, returns immediately
     """
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -772,15 +793,16 @@ def upload_file():
     if category not in ['Videos', 'GIFs', 'PS', 'Intro']:
         category = 'Videos'
     
-    print(f"✅ Category received: {category}")  # Debug log
+    print(f"✅ Upload received: {file.filename} → Category: {category}")
 
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
 
-        # Check if video already exists
+        # Check if video already exists and delete it
         existing = supabase.table('videos').select('id').eq('filename', filename).execute()
         if existing.data:
             video_id = existing.data[0]['id']
+            print(f"🔄 Deleting existing video: {filename} (ID: {video_id})")
             supabase.table('clips').delete().eq('video_id', video_id).execute()
             supabase.table('visual_frames').delete().eq('video_id', video_id).execute()
             supabase.table('videos').delete().eq('id', video_id).execute()
@@ -790,29 +812,26 @@ def upload_file():
             file.save(tmp.name)
             tmp_path = tmp.name
 
-        try:
-            # Process video with full AI analysis
-            print(f"🎬 Processing video: {filename} (Category: {category})")
-            process_video(tmp_path, filename, category)
-            
-            # Clean up temp file
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-            
-            # Return success
-            return jsonify({
-                'success': True, 
-                'filename': filename,
-                'message': 'Video processed successfully!'
-            })
-            
-        except Exception as e:
-            print(f"❌ Upload error: {str(e)}")
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-            return jsonify({'error': str(e)}), 500
+        print(f"💾 Saved to temp: {tmp_path} ({os.path.getsize(tmp_path) / 1024 / 1024:.1f}MB)")
+        
+        # Start background processing thread
+        thread = threading.Thread(
+            target=process_video_async,
+            args=(tmp_path, filename, category),
+            daemon=True
+        )
+        thread.start()
+        print(f"🚀 Background processing started for: {filename}")
+        
+        # Return SUCCESS immediately - video will process in background
+        return jsonify({
+            'success': True, 
+            'filename': filename,
+            'message': f'Upload started! Processing {filename} in background...',
+            'category': category
+        })
 
-    return jsonify({'error': 'Invalid file type'}), 400
+    return jsonify({'error': 'Invalid file type. Allowed: mp4, mov, avi, mkv, webm, gif'}), 400
 
 
 def _run_search(query, query_embedding, emotions_filter, genres_filter, categories_filter=None):
