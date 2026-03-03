@@ -942,7 +942,16 @@ def _run_search(query, query_embedding, emotions_filter, genres_filter, categori
     # Fetch videos with category filtering (handle missing category column)
     try:
         if categories_filter and len(categories_filter) > 0:
-            v_query = supabase.table('videos').select('id, filename, custom_tags, category').in_('category', categories_filter)
+            # If 'Intro' is in filter, expand to include all Intro-* sub-categories
+            expanded_categories = []
+            for cat in categories_filter:
+                if cat == 'Intro':
+                    # Include generic Intro and all sub-styles
+                    expanded_categories.extend(['Intro', 'Intro-Animation', 'Intro-Location', 'Intro-Vlog', 'Intro-ColdOpen', 'Intro-Narration'])
+                else:
+                    expanded_categories.append(cat)
+            
+            v_query = supabase.table('videos').select('id, filename, custom_tags, category').in_('category', expanded_categories)
         else:
             v_query = supabase.table('videos').select('id, filename, custom_tags, category')
         v_resp = v_query.execute()
