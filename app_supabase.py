@@ -131,12 +131,22 @@ def extract_frames_for_analysis(video_path, video_duration, filename):
                 ffmpeg = path
                 break
 
-        if video_duration <= 20:
-            timestamps = [video_duration / 2]
+        # Extract more frames for better coverage, especially for Intro category
+        if video_duration <= 10:
+            # Very short: 2 frames
+            timestamps = [video_duration * 0.3, video_duration * 0.7]
+        elif video_duration <= 30:
+            # Short: 4 frames (every ~7.5s)
+            timestamps = [video_duration * 0.15, video_duration * 0.35, video_duration * 0.65, video_duration * 0.85]
         elif video_duration <= 60:
-            timestamps = [video_duration / 3, video_duration * 2 / 3]
+            # Medium: 6 frames (every ~10s)
+            timestamps = [video_duration * i / 7 for i in range(1, 7)]
+        elif video_duration <= 120:
+            # Long: 8 frames (every ~15s)
+            timestamps = [video_duration * i / 9 for i in range(1, 9)]
         else:
-            timestamps = [video_duration * 0.25, video_duration * 0.5, video_duration * 0.75]
+            # Very long: 10 frames
+            timestamps = [video_duration * i / 11 for i in range(1, 11)]
 
         for timestamp in timestamps:
             if timestamp >= video_duration:
@@ -1189,6 +1199,27 @@ def list_videos():
         response.headers['Expires'] = '0'
         return response
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/video-analysis/<int:video_id>', methods=['GET'])
+def get_video_analysis(video_id):
+    """Get all visual frame analyses for a video."""
+    try:
+        # Fetch all visual frames for this video, ordered by timestamp
+        frames_resp = supabase.table('visual_frames').select(
+            'timestamp, visual_description, emotion, scene_summary, ocr_text'
+        ).eq('video_id', video_id).order('timestamp').execute()
+        
+        if not frames_resp.data:
+            return jsonify({'frames': []}), 200
+        
+        return jsonify({
+            'frames': frames_resp.data,
+            'count': len(frames_resp.data)
+        })
+    except Exception as e:
+        print(f"❌ Error fetching video analysis: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 

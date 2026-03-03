@@ -1354,12 +1354,12 @@
             }
         }
 
-        function playClip(result, resultIndex = -1) {
+        async function playClip(result, resultIndex = -1) {
             currentResultIndex = resultIndex;
             const videoUrl = `${API_BASE}/uploads/${result.filename}?v=${Date.now()}`;
             const isGif = result.filename.toLowerCase().endsWith('.gif');
             const videoLoading = document.getElementById('videoLoading');
-            
+
             // Show GIF player or video player based on file type
             if (isGif) {
                 videoPlayer.classList.add('hidden');
@@ -1368,35 +1368,60 @@
             } else {
                 gifPlayer.classList.add('hidden');
                 videoPlayer.classList.remove('hidden');
-                
+
                 // Show loading indicator
                 videoLoading.classList.remove('hidden');
-                
+
                 videoPlayer.src = videoUrl;
                 videoPlayer.currentTime = result.start_time;
-                
+
                 // Hide loading when video can play
                 videoPlayer.oncanplay = () => {
                     videoLoading.classList.add('hidden');
                     videoPlayer.play();
                 };
-                
+
                 // Also hide loading on error
                 videoPlayer.onerror = () => {
                     videoLoading.classList.add('hidden');
                     alert('Error loading video. Please try again.');
                 };
             }
-            
+
             document.getElementById('modalTitle').textContent = result.filename;
-            document.getElementById('clipTranscript').textContent = result.text;
-            document.getElementById('timeInfo').textContent = isGif 
+            
+            // Fetch ALL visual frames for this video to show complete analysis
+            let fullDescription = result.text; // Default to single result text
+            try {
+                const framesResponse = await fetch(`${API_BASE}/video-analysis/${result.video_id}`);
+                if (framesResponse.ok) {
+                    const framesData = await framesResponse.json();
+                    if (framesData.frames && framesData.frames.length > 0) {
+                        // Sort frames by timestamp
+                        const sortedFrames = framesData.frames.sort((a, b) => a.timestamp - b.timestamp);
+                        
+                        // Concatenate all frame descriptions
+                        fullDescription = sortedFrames.map((frame, idx) => {
+                            const timeStr = formatTime(frame.timestamp);
+                            return `[${timeStr}] ${frame.visual_description}`;
+                        }).join('\n\n');
+                        
+                        console.log(`📊 Loaded ${sortedFrames.length} frames for complete analysis`);
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not load full video analysis:', error);
+                // Fall back to single result text
+            }
+            
+            document.getElementById('clipTranscript').textContent = fullDescription;
+            document.getElementById('timeInfo').textContent = isGif
                 ? `Animated GIF • Duration: ${result.duration.toFixed(1)}s`
                 : `Playing from ${formatTime(result.start_time)} to ${formatTime(result.end_time)} (${result.duration.toFixed(1)}s)`;
-            
+
             // Update navigation buttons
             updateNavigationButtons();
-            
+
             videoModal.classList.remove('hidden');
             videoModal.classList.add('flex');
         }
