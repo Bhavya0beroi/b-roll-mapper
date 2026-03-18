@@ -30,25 +30,37 @@ MONGODB_URI = os.getenv('MONGODB_URI')
 if not MONGODB_URI:
     raise RuntimeError("MONGODB_URI must be set in environment")
 
-mongo_client = MongoClient(MONGODB_URI)
+# connect=False defers the actual network connection until first use.
+# This prevents startup crashes in gunicorn where module-level I/O can fail.
+mongo_client = MongoClient(MONGODB_URI, connect=False)
 db = mongo_client['broll_mapper']
 
-videos_col    = db['videos']
-clips_col     = db['clips']
-frames_col    = db['visual_frames']
-counters_col  = db['counters']
+videos_col   = db['videos']
+clips_col    = db['clips']
+frames_col   = db['visual_frames']
+counters_col = db['counters']
 
-# Indexes
-videos_col.create_index([('id', ASCENDING)], unique=True)
-videos_col.create_index([('filename', ASCENDING)])
-videos_col.create_index([('category', ASCENDING)])
-videos_col.create_index([('upload_date', DESCENDING)])
-clips_col.create_index([('id', ASCENDING)], unique=True)
-clips_col.create_index([('video_id', ASCENDING)])
-clips_col.create_index([('start_time', ASCENDING)])
-frames_col.create_index([('id', ASCENDING)], unique=True)
-frames_col.create_index([('video_id', ASCENDING)])
-frames_col.create_index([('timestamp', ASCENDING)])
+_indexes_created = False
+
+def ensure_indexes():
+    """Create indexes on first request — not at import time."""
+    global _indexes_created
+    if _indexes_created:
+        return
+    try:
+        videos_col.create_index([('id', ASCENDING)], unique=True)
+        videos_col.create_index([('filename', ASCENDING)])
+        videos_col.create_index([('category', ASCENDING)])
+        videos_col.create_index([('upload_date', DESCENDING)])
+        clips_col.create_index([('id', ASCENDING)], unique=True)
+        clips_col.create_index([('video_id', ASCENDING)])
+        clips_col.create_index([('start_time', ASCENDING)])
+        frames_col.create_index([('id', ASCENDING)], unique=True)
+        frames_col.create_index([('video_id', ASCENDING)])
+        frames_col.create_index([('timestamp', ASCENDING)])
+        _indexes_created = True
+    except Exception as e:
+        print(f"⚠️  Index creation warning (non-fatal): {e}")
 
 app = Flask(__name__, static_folder='.')
 
@@ -792,6 +804,11 @@ def process_video(video_path, filename, category='Videos'):
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
+@app.before_request
+def before_request():
+    ensure_indexes()
+
 
 @app.route('/')
 def index():
