@@ -1,0 +1,1544 @@
+"""
+B-Roll Mapper - MongoDB Version
+Migrated from Supabase to MongoDB. Video files stored locally in uploads/ folder.
+
+Environment variables required:
+- MONGODB_URI
+- OPENAI_API_KEY
+"""
+
+import os
+import subprocess
+import math
+import base64
+import tempfile
+import json
+import threading
+import shutil
+from datetime import datetime, timezone
+
+from flask import Flask, request, jsonify, send_from_directory, redirect
+from flask_cors import CORS
+from werkzeug.utils import secure_filename
+from openai import OpenAI
+from dotenv import load_dotenv
+from pymongo import MongoClient, ASCENDING, DESCENDING
+
+load_dotenv()
+
+MONGODB_URI = os.getenv('MONGODB_URI')
+if not MONGODB_URI:
+    raise RuntimeError("MONGODB_URI must be set in environment")
+
+mongo_client = MongoClient(MONGODB_URI)
+db = mongo_client['broll_mapper']
+
+videos_col    = db['videos']
+clips_col     = db['clips']
+frames_col    = db['visual_frames']
+counters_col  = db['counters']
+
+# Indexes
+videos_col.create_index([('id', ASCENDING)], unique=True)
+videos_col.create_index([('filename', ASCENDING)])
+videos_col.create_index([('category', ASCENDING)])
+videos_col.create_index([('upload_date', DESCENDING)])
+clips_col.create_index([('id', ASCENDING)], unique=True)
+clips_col.create_index([('video_id', ASCENDING)])
+clips_col.create_index([('start_time', ASCENDING)])
+frames_col.create_index([('id', ASCENDING)], unique=True)
+frames_col.create_index([('video_id', ASCENDING)])
+frames_col.create_index([('timestamp', ASCENDING)])
+
+app = Flask(__name__, static_folder='.')
+
+CORS(app,
+     resources={r"/*": {
+         "origins": "*",
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization"],
+         "expose_headers": ["Content-Length", "X-Upload-Progress"],
+         "max_age": 3600
+     }})
+
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+UPLOADS_FOLDER    = 'uploads'
+THUMBNAILS_FOLDER = 'thumbnails'
+FRAMES_FOLDER     = 'frames'
+ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv', 'webm', 'gif', 'jpg', 'jpeg', 'png'}
+CHUNK_DURATION = 15
+FRAME_INTERVAL = 10
+
+os.makedirs(UPLOADS_FOLDER, exist_ok=True)
+os.makedirs(THUMBNAILS_FOLDER, exist_ok=True)
+os.makedirs(FRAMES_FOLDER, exist_ok=True)
+
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def get_next_id(collection_name: str) -> int:
+    """Auto-increment integer ID using a counters collection."""
+    result = counters_col.find_one_and_update(
+        {'_id': collection_name},
+        {'$inc': {'seq': 1}},
+        upsert=True,
+        return_document=True
+    )
+    return result['seq']
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def get_video_duration(video_path):
+    """Get video duration using ffprobe."""
+    try:
+        ffprobe_paths = ['/opt/homebrew/bin/ffprobe', '/usr/bin/ffprobe', 'ffprobe']
+        ffprobe = None
+        for path in ffprobe_paths:
+            if os.path.exists(path):
+                ffprobe = path
+                break
+        if not ffprobe:
+            ffprobe = 'ffprobe'
+
+        cmd = [ffprobe, '-v', 'error', '-show_entries', 'format=duration',
+               '-of', 'default=noprint_wrappers=1:nokey=1', video_path]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return float(result.stdout.strip())
+    except Exception as e:
+        print(f"❌ Error getting video duration: {e}")
+        return 0
+
+
+def generate_thumbnail(video_path, thumbnail_path, timestamp=1.0):
+    """Generate video thumbnail using ffmpeg."""
+    try:
+        ffmpeg_paths = ['/opt/homebrew/bin/ffmpeg', '/usr/bin/ffmpeg', 'ffmpeg']
+        ffmpeg = None
+        for path in ffmpeg_paths:
+            if os.path.exists(path):
+                ffmpeg = path
+                break
+        if not ffmpeg:
+            ffmpeg = 'ffmpeg'
+
+        cmd = [ffmpeg, '-i', video_path, '-ss', str(timestamp), '-vframes', '1', '-q:v', '2', '-y', thumbnail_path]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception("Thumbnail generation failed")
+        return thumbnail_path
+    except Exception as e:
+        print(f"❌ Error generating thumbnail: {e}")
+        return None
+
+
+def extract_frames_for_analysis(video_path, video_duration, filename):
+    """Extract frames at regular intervals for visual analysis."""
+    try:
+        frames = []
+        video_base = os.path.splitext(filename)[0]
+
+        ffmpeg_paths = ['/opt/homebrew/bin/ffmpeg', '/usr/bin/ffmpeg', 'ffmpeg']
+        ffmpeg = None
+        for path in ffmpeg_paths:
+            if os.path.exists(path) or path == 'ffmpeg':
+                ffmpeg = path
+                break
+
+        if video_duration <= 10:
+            timestamps = [video_duration * 0.3, video_duration * 0.7]
+        elif video_duration <= 30:
+            timestamps = [video_duration * 0.15, video_duration * 0.35, video_duration * 0.65, video_duration * 0.85]
+        elif video_duration <= 60:
+            timestamps = [video_duration * i / 7 for i in range(1, 7)]
+        elif video_duration <= 120:
+            timestamps = [video_duration * i / 9 for i in range(1, 9)]
+        else:
+            timestamps = [video_duration * i / 11 for i in range(1, 11)]
+
+        for timestamp in timestamps:
+            if timestamp >= video_duration:
+                break
+            frame_filename = f"{video_base}_frame_{int(timestamp)}s.jpg"
+            frame_path = os.path.join(FRAMES_FOLDER, frame_filename)
+            cmd = [ffmpeg, '-ss', str(timestamp), '-i', video_path, '-vframes', '1', '-q:v', '2', '-y', frame_path]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                frames.append({'timestamp': timestamp, 'path': frame_path, 'filename': frame_filename})
+        return frames
+    except Exception as e:
+        print(f"❌ Error extracting frames: {e}")
+        return []
+
+
+def intelligently_generate_categorized_tags(analysis):
+    """Generate comprehensive categorized tags from Vision API analysis."""
+    description = str(analysis.get('description', ''))
+    emotion = str(analysis.get('emotion', ''))
+    deep_emotions = analysis.get('deep_emotions', '')
+    scene_context = str(analysis.get('scene_context', ''))
+    environment = str(analysis.get('environment', ''))
+    people_description = str(analysis.get('people_description', ''))
+    actors = analysis.get('actors', '')
+    series_movie = str(analysis.get('series_movie', ''))
+    media_type = str(analysis.get('media_type', 'Unknown'))
+    tags = str(analysis.get('tags', ''))
+
+    all_tags_list = []
+    if tags:
+        all_tags_list = tags.split(',') if isinstance(tags, str) else tags
+        if not isinstance(all_tags_list, list):
+            all_tags_list = [tags]
+        all_tags_list = [t.strip() for t in all_tags_list if t and t.strip()]
+
+    emotion_list = []
+    laugh_list = []
+    contextual_list = []
+    character_list = []
+    semantic_list = []
+
+    if emotion and emotion.lower() not in ['unknown', 'neutral', 'none', '']:
+        emotion_list.append(emotion.lower())
+    if deep_emotions:
+        deep_emo_list = deep_emotions.split(',') if isinstance(deep_emotions, str) else deep_emotions
+        if isinstance(deep_emo_list, list):
+            emotion_list.extend([e.strip().lower() for e in deep_emo_list if e and str(e).strip()])
+
+    description_lower = description.lower() if description else ''
+    emotion_keywords = ['joy', 'happy', 'sad', 'content', 'satisfaction', 'relief', 'confidence', 'pride', 'calm',
+                       'trust', 'warm', 'camaraderie', 'friendship', 'bonding', 'triumphant', 'euphoric', 'sad',
+                       'sadness', 'melancholy', 'tense', 'nervous', 'anxiety', 'fear', 'angry', 'frustration']
+    for keyword in emotion_keywords:
+        if keyword in description_lower and keyword not in emotion_list:
+            emotion_list.append(keyword)
+
+    laugh_keywords = {'laugh': 'warm-laugh', 'laughing': 'genuine-laugh', 'smile': 'warm-smile', 'smiling': 'content-smile'}
+    for trigger, laugh_tag in laugh_keywords.items():
+        if trigger in description_lower and laugh_tag not in laugh_list:
+            laugh_list.append(laugh_tag)
+
+    has_money = 'cash' in description_lower or 'money' in description_lower or 'stack' in description_lower
+    if has_money:
+        contextual_list.extend(['stack-of-cash', 'money-power', 'wealth-display', 'cash-aesthetic'])
+
+    has_friendship = 'friend' in description_lower or 'duo' in description_lower or 'bond' in description_lower
+    if has_friendship:
+        contextual_list.extend(['friendship-moment', 'bonding-scene', 'camaraderie-display'])
+
+    if actors:
+        actors_str = str(actors)
+        actors_list = actors_str.strip('[]').replace("'", "").split(',') if isinstance(actors, str) else actors
+        if isinstance(actors_list, list):
+            for actor in actors_list:
+                if actor and str(actor).strip():
+                    character_list.append(str(actor).strip().replace(' ', '-'))
+
+    if series_movie and series_movie.lower() not in ['unknown', 'none', '']:
+        semantic_list.append(series_movie.replace(' ', '-'))
+    if media_type and media_type != 'Unknown':
+        semantic_list.extend(['web-series', 'movie', 'film'] if 'Web' in media_type or 'Movie' in media_type else [])
+
+    for tag in all_tags_list:
+        tag_lower = tag.lower().strip()
+        if not tag_lower:
+            continue
+        if any(w in tag_lower for w in ['joy', 'happy', 'sad', 'content']):
+            if tag_lower not in emotion_list:
+                emotion_list.append(tag_lower)
+        elif 'laugh' in tag_lower or 'smile' in tag_lower:
+            if tag_lower not in laugh_list:
+                laugh_list.append(tag_lower)
+        else:
+            if tag_lower not in contextual_list:
+                contextual_list.append(tag_lower)
+
+    emotion_list    = list(dict.fromkeys(emotion_list))
+    laugh_list      = list(dict.fromkeys(laugh_list))
+    contextual_list = list(dict.fromkeys(contextual_list))
+    character_list  = list(dict.fromkeys(character_list))
+    semantic_list   = list(dict.fromkeys(semantic_list))
+
+    return {
+        'emotion_tags':    ', '.join(emotion_list)    if emotion_list    else '',
+        'laugh_tags':      ', '.join(laugh_list)      if laugh_list      else '',
+        'contextual_tags': ', '.join(contextual_list) if contextual_list else '',
+        'character_tags':  ', '.join(character_list)  if character_list  else '',
+        'semantic_tags':   ', '.join(semantic_list)   if semantic_list   else '',
+        'total_count': len(emotion_list) + len(laugh_list) + len(contextual_list) + len(character_list) + len(semantic_list),
+        'counts': {'emotion': len(emotion_list), 'laugh': len(laugh_list), 'contextual': len(contextual_list),
+                   'character': len(character_list), 'semantic': len(semantic_list)}
+    }
+
+
+def analyze_frame_with_vision(frame_path, transcript_context='', filename_hint='', category='Videos'):
+    """Analyze frame using OpenAI Vision API with category-specific focus."""
+    try:
+        with open(frame_path, 'rb') as image_file:
+            image_data = base64.b64encode(image_file.read()).decode('utf-8')
+
+        context_info = ""
+        if transcript_context:
+            context_info += f"\n\nDialogue/Transcript: {transcript_context}\n"
+        if filename_hint:
+            clean_hint = filename_hint.replace('_', ' ').replace('-', ' ').replace('.mp4', '').replace('.gif', '').replace('.mov', '')
+            context_info += f"\nFilename Hint (may contain movie name): {clean_hint}\n"
+
+        INTRO_STYLE_LABELS = {
+            'Intro': 'YouTube/Movie Intro (general)',
+            'Intro-Animation': 'Animations/B-roll + Narrative intro (animated graphics, motion graphics, b-roll montage with voiceover)',
+            'Intro-Location': 'Location-based/Documentary style intro (on-location establishing shots, documentary b-roll, real-world environment)',
+            'Intro-Vlog': 'Vlog style intro (PTC presenter-to-camera, direct address, action shots, personal vlog)',
+            'Intro-ColdOpen': 'Cold open intro (direct-into-action, no titles, hook scene, no introduction)',
+            'Intro-Narration': 'Narration + Cinematic intro (voiceover narration with cinematic wide shots, cinematic b-roll)',
+        }
+        category_instructions = ""
+        if category in INTRO_STYLE_LABELS:
+            style_label = INTRO_STYLE_LABELS[category]
+            category_instructions = f"""
+⚠️ INTRO CATEGORY - ULTRA-DETAILED ANALYSIS REQUIRED:
+INTRO STYLE: {style_label}
+This is a YouTube/movie intro (max 60 seconds). Provide comprehensive technical analysis that explicitly reflects the intro style above.
+
+FORMAT YOUR VISUAL DESCRIPTION AS:
+[INTRO STYLE: {style_label}] [CAMERA] → [SUBJECT] → [ACTION] → [OBJECTS] → [SETTING] → [LIGHTING/STYLE]
+
+MANDATORY SECTIONS IN VISUAL DESCRIPTION:
+
+1. CAMERA TECHNIQUE (Start with this):
+   Shot: close-up/medium/wide/ECU/establishing/aerial/drone/POV
+   Angle: eye-level/low-angle/high-angle/dutch/bird's-eye/worm's-eye
+   Movement: static/pan-left/pan-right/tilt-up/tilt-down/zoom-in/zoom-out/tracking/dolly/handheld/crane/slider
+   
+2. SUBJECT (Person/Main focus):
+   - Age, gender, ethnicity, clothing (color, style, brand if visible)
+   - Facial expression, body language, gestures
+   - What they're doing (specific action)
+   
+3. OBJECTS & PROPS (List EVERYTHING visible):
+   - Furniture (sofa color, table, chair, desk)
+   - Electronics (laptop brand, phone, camera, microphone)
+   - Decorations (plants type, frames, artwork, books, shelves)
+   - Branding (logos, text on items, watermarks)
+   - Text on screen (title cards, channel name, graphics)
+   
+4. SETTING & ENVIRONMENT:
+   - Room type (living room, studio, office, bedroom, outdoor)
+   - Interior style (modern, minimalist, rustic, industrial)
+   - Wall color, flooring, windows
+   - Background depth (what's behind subject)
+   
+5. LIGHTING & COLOR:
+   - Light sources (natural window light, ring light, softbox, LED panels)
+   - Color temperature (warm/cool, golden hour, blue hour)
+   - Color grading style (vibrant, muted, cinematic, high-contrast)
+   - Shadows, highlights, exposure
+
+6. CREATOR/CHANNEL (If identifiable):
+   - Channel name from watermark/graphics
+   - Creator name if famous/recognizable
+   - Production style indicators
+
+EXAMPLE GOOD OUTPUT:
+"[INTRO STYLE: {style_label}] [CAMERA: Medium shot, eye-level angle, static] Young Indian man in his late 20s wearing a teal polo shirt with mic clipped on collar, sitting on a beige/cream L-shaped fabric sofa in a modern indoor living room. He's making hand gestures near his chin while speaking directly to camera with animated, friendly expression. [OBJECTS: Behind him - tall green potted plant (monstera) in left corner, white/cream decorative wall frames, wooden furniture visible at edges. Floor has light-colored carpet/rug. ZERO1 channel logo watermark in top-right corner.] [SETTING: Well-lit modern home studio setup with minimalist aesthetic, neutral color palette - beige sofa, cream walls, natural wood tones.] [LIGHTING: Soft, diffused lighting from front (likely ring light or softbox), warm color temperature creating inviting atmosphere, even exposure with no harsh shadows, professional YouTube production quality.]"
+
+Be SPECIFIC not generic! Always include the intro style label in your output.
+"""
+        elif category == 'Videos':
+            category_instructions = """
+VIDEOS CATEGORY - Standard detailed analysis with focus on emotion and narrative.
+"""
+        elif category == 'Photo':
+            category_instructions = """
+PHOTO/SCREENSHOT CATEGORY - Analyze this static image or screenshot in detail.
+Describe all visible elements: people, objects, text, UI elements, setting, colors, composition.
+If it is a screenshot, describe the app/website/interface shown and any readable text.
+"""
+
+        prompt = f"""You are an expert video analyst. Study this frame CAREFULLY and use ALL context clues.
+{category_instructions}
+
+CONTEXT CLUES PROVIDED:
+{context_info}
+
+CRITICAL CHARACTER IDENTIFICATION RULES:
+- ONLY use character/actor names if they appear in the filename OR transcript
+- If filename contains "Aamir_Khan" or "Aamir Khan" → AAMIR KHAN (plays Rancho in 3 Idiots)
+- If filename contains "3_Idiots" or "3 Idiots" → 3 IDIOTS movie (characters: Rancho, Farhan, Raju)
+- If filename contains "Farzi" → FARZI series (characters: Sunny, Firoz)
+- If filename contains "Scam_1992" → SCAM 1992 series (character: Harshad Mehta)
+- If transcript mentions character names → USE THOSE EXACT NAMES
+- If NO character name in filename/transcript → Use descriptive terms: "young man", "woman", "father", "student", "businessman" based on visible context
+- NEVER invent or guess character names - use generic descriptors if unknown
+
+STEP-BY-STEP VISUAL ANALYSIS:
+1. CAMERA ANGLE & COMPOSITION: Identify the shot type (close-up, medium shot, wide shot, aerial view, top-down view, low angle, high angle, dutch angle, over-the-shoulder, POV, tracking shot)
+2. PEOPLE: How many? Gender? Approximate age? What are they DOING? Facial expressions? Body language?
+3. SETTING: Indoor/outdoor? Time of day? Lighting? Objects? Environment details?
+4. EMOTIONAL STATE: What complex emotions are visible? (e.g., "under pressure", "in a mental loop", "experiencing cognitive dissonance", "feeling trapped", "overwhelmed by expectations")
+5. IDENTIFY MOVIE/SERIES from filename/transcript only
+
+GENERATE COMPREHENSIVE TAGS:
+
+Visual Description (Format: [CAMERA] → [SUBJECT] → [ACTION] → [OBJECTS] → [SETTING] → [LIGHTING]):
+- Start with CAMERA: "Medium shot, eye-level angle, static" or "Close-up, low angle, slow zoom"
+- SUBJECT: WHO (generic: "young man in teal shirt", "woman") + facial expression + gesture/pose
+- ACTION: What they're doing specifically
+- OBJECTS: List ALL visible items (furniture colors, plant types, electronics, logos, text, decorations)
+- SETTING: Room type, style, colors, atmosphere
+- LIGHTING: Light sources, color temperature, mood
+
+Scene Summary (2-3 sentences): Deep emotional/narrative significance, psychological state
+
+Series/Movie: Name ONLY if in filename/transcript
+Characters: Names ONLY if in filename/transcript, otherwise use "young man", "woman", "father", etc.
+Basic Emotion: sad/happy/laughing/crying/angry/surprised/fear/love/neutral/contemplative/anxious
+
+Emotion Tags (30-50 tags - INCLUDE COMPOUND EMOTIONS):
+- Simple: happy, sad, angry, fear, joy, surprise
+- Complex: under pressure, feeling trapped, cognitive dissonance, mental loop, overwhelmed, suffocating, liberated, breakthrough moment, identity crisis, existential dread, competitive stress, academic pressure, social anxiety, imposter syndrome, burnout, etc.
+
+Laugh Tags (if ANY smiling/laughing - 10-15 types, empty [] if not)
+Contextual Tags (25-35 tags: genre, setting, mood, time-of-day, lighting-type, relationship dynamics, scene purpose)
+Character Tags (10-20 tags: ONLY use names from filename/transcript, otherwise "young man with glasses", "woman in business attire", etc.)
+Semantic Tags (35-50 visible details: camera angle, camera movement, objects, clothing, actions, setting, lighting, colors, composition, framing)
+
+Return ONLY valid JSON:
+{{
+  "visual_description": "[CAMERA: shot/angle/movement] Subject description + action. [OBJECTS: enumerate ALL visible items with colors/brands]. [SETTING: room type/style/colors]. [LIGHTING: sources/temperature/mood]",
+  "scene_summary": "Brief 1-2 sentences about emotional/narrative significance",
+  "series_movie": "EXACT movie/series name from filename ONLY (empty string if not found)",
+  "characters": "Character names from filename/transcript ONLY, otherwise use 'young man', 'woman', 'father' etc.",
+  "basic_emotion": "sad/happy/laughing/crying/angry/surprised/fear/love/neutral/contemplative/anxious",
+  "emotion_tags": ["30-50 specific emotions INCLUDING compound emotions: 'under pressure', 'mental loop', 'feeling trapped', 'overwhelmed by expectations', etc."],
+  "laugh_tags": ["10-15 laugh types if laughing, empty [] if not"],
+  "contextual_tags": ["25-35 scene context: genre, setting, mood, lighting, relationships, scene purpose"],
+  "character_tags": ["10-20 tags: ONLY names from filename/transcript, or descriptive terms like 'young man with glasses', 'woman in suit'"],
+  "semantic_tags": ["35-50 visible details: CAMERA ANGLE/MOVEMENT + objects + clothing + actions + setting + lighting + colors + composition"]
+}}
+
+Return ONLY JSON, no other text."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}", "detail": "low"}}
+                ]
+            }],
+            max_tokens=3000,
+            temperature=0.3
+        )
+
+        result_text = response.choices[0].message.content.strip()
+        if result_text.startswith('```'):
+            lines = result_text.split('\n')[1:]
+            if lines and lines[-1].strip() == '```':
+                lines = lines[:-1]
+            result_text = '\n'.join(lines).strip()
+        result_text = result_text.replace('```json', '').replace('```', '').strip()
+        result = json.loads(result_text)
+
+        emotion_tags_list    = result.get('emotion_tags', [])
+        laugh_tags_list      = result.get('laugh_tags', [])
+        contextual_tags_list = result.get('contextual_tags', [])
+        character_tags_list  = result.get('character_tags', [])
+        semantic_tags_list   = result.get('semantic_tags', [])
+        basic_emotion        = result.get('basic_emotion', 'neutral')
+        characters_str       = result.get('characters', '')
+        actor_name = ''
+        if '(' in characters_str and ')' in characters_str:
+            actor_name = characters_str.split('(')[1].split(')')[0].strip()
+        elif ' as ' in characters_str:
+            actor_name = characters_str.split(' as ')[0].strip()
+
+        visual_desc   = result.get('visual_description', '')
+        scene_summary = result.get('scene_summary', '')
+        full_description = f"[Visual - {basic_emotion.title()}] {visual_desc} {scene_summary}".strip()
+        all_tags = character_tags_list + semantic_tags_list
+
+        return {
+            'description':      full_description,
+            'emotion':          basic_emotion,
+            'deep_emotions':    ', '.join(emotion_tags_list),
+            'ocr_text':         '',
+            'tags':             ', '.join(all_tags),
+            'genres':           'Drama',
+            'scene_context':    scene_summary,
+            'people_description': characters_str,
+            'actors':           actor_name,
+            'environment':      visual_desc,
+            'dialogue_context': transcript_context,
+            'series_movie':     result.get('series_movie', 'Unknown'),
+            'media_type':       'Movie',
+            'target_audience':  'General',
+            'scene_type':       'dramatic',
+            'emotion_tags':     ', '.join(emotion_tags_list),
+            'laugh_tags':       ', '.join(laugh_tags_list),
+            'contextual_tags':  ', '.join(contextual_tags_list),
+            'character_tags':   ', '.join(character_tags_list),
+            'semantic_tags':    ', '.join(semantic_tags_list)
+        }
+    except Exception as e:
+        print(f"❌ Error analyzing frame: {e}")
+        return None
+
+
+def extract_audio(video_path):
+    """Extract audio from video using ffmpeg."""
+    try:
+        ffmpeg_paths = ['/opt/homebrew/bin/ffmpeg', '/usr/bin/ffmpeg', 'ffmpeg']
+        ffprobe_paths = ['/opt/homebrew/bin/ffprobe', '/usr/bin/ffprobe', 'ffprobe']
+
+        ffmpeg = None
+        ffprobe = None
+
+        for path in ffmpeg_paths:
+            if os.path.exists(path) or path == 'ffmpeg':
+                ffmpeg = path
+                break
+        for path in ffprobe_paths:
+            if os.path.exists(path) or path == 'ffprobe':
+                ffprobe = path
+                break
+
+        probe_cmd = [ffprobe, '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_type',
+                     '-of', 'default=noprint_wrappers=1:nokey=1', video_path]
+        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True)
+        if not probe_result.stdout.strip():
+            return None
+
+        audio_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3').name
+        cmd = [ffmpeg, '-i', video_path, '-vn', '-acodec', 'libmp3lame', '-q:a', '2', '-y', audio_path]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception("FFmpeg failed")
+        return audio_path
+    except Exception as e:
+        print(f"❌ Error extracting audio: {e}")
+        return None
+
+
+def transcribe_audio(audio_path):
+    """Transcribe audio using OpenAI Whisper API."""
+    with open(audio_path, 'rb') as audio_file:
+        transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file, response_format="verbose_json")
+    return transcript
+
+
+def create_embedding(text):
+    """Create embedding using OpenAI embeddings API."""
+    response = client.embeddings.create(model='text-embedding-3-small', input=text)
+    embedding = response.data[0].embedding
+    return json.dumps(embedding).encode('utf-8')
+
+
+def cosine_similarity(embedding1_blob, embedding2_blob):
+    """Calculate cosine similarity between two embeddings."""
+    try:
+        vec1 = json.loads(embedding1_blob.decode('utf-8'))
+        vec2 = json.loads(embedding2_blob.decode('utf-8'))
+        dot_product = sum(a * b for a, b in zip(vec1, vec2))
+        magnitude1 = math.sqrt(sum(a * a for a in vec1))
+        magnitude2 = math.sqrt(sum(b * b for b in vec2))
+        if magnitude1 == 0 or magnitude2 == 0:
+            return 0.0
+        return dot_product / (magnitude1 * magnitude2)
+    except Exception:
+        return 0.0
+
+
+def save_video_locally(src_path, filename):
+    """Copy video to uploads folder and return its serving URL."""
+    dest = os.path.join(UPLOADS_FOLDER, filename)
+    if os.path.abspath(src_path) != os.path.abspath(dest):
+        shutil.copy2(src_path, dest)
+    return f"/uploads/{filename}"
+
+
+def save_thumbnail_locally(src_path, filename):
+    """Copy thumbnail to thumbnails folder and return its serving URL."""
+    dest = os.path.join(THUMBNAILS_FOLDER, filename)
+    if os.path.abspath(src_path) != os.path.abspath(dest):
+        shutil.copy2(src_path, dest)
+    return f"/thumbnails/{filename}"
+
+
+# ---------------------------------------------------------------------------
+# Core video processing
+# ---------------------------------------------------------------------------
+
+def process_video(video_path, filename, category='Videos'):
+    """Process video/image: save locally, transcribe (videos only), visual analysis."""
+    print(f"\n{'='*60}\n🎬 PROCESSING: {filename} (Category: {category})\n{'='*60}")
+
+    is_image = filename.lower().endswith(('.jpg', '.jpeg', '.png'))
+
+    if is_image:
+        video_duration = 0
+        thumbnail_path = video_path
+        thumbnail_filename = filename
+        print(f"📸 Processing static image: {filename}")
+    else:
+        video_duration = get_video_duration(video_path)
+        print(f"⏱️  Video duration: {video_duration:.2f}s")
+
+        thumbnail_time = min(1.0, video_duration * 0.1)
+        thumbnail_filename = f"thumb_{os.path.splitext(filename)[0]}.jpg"
+        thumbnail_path = os.path.join(THUMBNAILS_FOLDER, thumbnail_filename)
+        generate_thumbnail(video_path, thumbnail_path, thumbnail_time)
+
+    print("💾 Saving video to local storage...")
+    video_url = save_video_locally(video_path, filename)
+    print(f"✅ Video saved: {video_url}")
+
+    if os.path.exists(thumbnail_path):
+        save_thumbnail_locally(thumbnail_path, thumbnail_filename)
+
+    clean_title = os.path.splitext(filename)[0].replace('-', ' ').replace('_', ' ')
+    if clean_title.startswith("Copy of "):
+        clean_title = clean_title[8:]
+
+    video_id = get_next_id('videos')
+    video_doc = {
+        'id':              video_id,
+        'filename':        filename,
+        'title':           clean_title,
+        'upload_date':     datetime.now(timezone.utc),
+        'duration':        video_duration,
+        'status':          'processing',
+        'thumbnail':       thumbnail_filename,
+        'custom_tags':     '',
+        'video_url':       video_url,
+        'category':        category
+    }
+    videos_col.insert_one(video_doc)
+    print(f"✅ Video record created (ID: {video_id})")
+
+    audio_path = None if is_image else extract_audio(video_path)
+    segment_count = 0
+
+    if audio_path:
+        try:
+            transcript = transcribe_audio(audio_path)
+            for segment in transcript.segments:
+                start_time = segment.start
+                end_time   = segment.end
+                text       = segment.text.strip()
+                if not text:
+                    continue
+                segment_count += 1
+                combined_text  = f"Title: {clean_title}. Transcript: {text}"
+                embedding_blob = create_embedding(combined_text)
+                embedding_list = json.loads(embedding_blob.decode('utf-8'))
+
+                clip_id = get_next_id('clips')
+                clip_doc = {
+                    'id':              clip_id,
+                    'video_id':        video_id,
+                    'start_time':      start_time,
+                    'end_time':        end_time,
+                    'transcript_text': text,
+                    'embedding':       embedding_list
+                }
+                try:
+                    clips_col.insert_one(clip_doc)
+                except Exception:
+                    clip_doc.pop('embedding', None)
+                    clips_col.insert_one(clip_doc)
+
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+        except Exception as e:
+            print(f"⚠️  Audio transcription error: {e}")
+
+    if is_image:
+        frames = [{'timestamp': 0, 'path': video_path, 'filename': filename}]
+        print(f"📸 Analyzing static image")
+    else:
+        frames = extract_frames_for_analysis(video_path, video_duration, filename)
+
+    full_transcript = ' '.join(
+        r['transcript_text'] or ''
+        for r in clips_col.find({'video_id': video_id}, {'transcript_text': 1}).sort('start_time', ASCENDING)
+    )
+
+    visual_count = 0
+    for frame_data in frames:
+        nearby_cursor = clips_col.find(
+            {
+                'video_id':   video_id,
+                'start_time': {'$lte': frame_data['timestamp'] + 10},
+                'end_time':   {'$gte': frame_data['timestamp'] - 10}
+            },
+            {'transcript_text': 1}
+        ).sort('start_time', ASCENDING).limit(3)
+        context_transcript = ' '.join(r['transcript_text'] or '' for r in nearby_cursor)
+
+        analysis = analyze_frame_with_vision(
+            frame_data['path'],
+            transcript_context=context_transcript,
+            filename_hint=filename,
+            category=category
+        )
+        if not analysis:
+            continue
+
+        def parse_tag_array(tag_data):
+            if isinstance(tag_data, list):
+                return ', '.join(str(t) for t in tag_data if t)
+            return str(tag_data) if tag_data else ''
+
+        description       = str(analysis.get('description', ''))
+        emotion           = str(analysis.get('emotion', ''))
+        ocr_text          = str(analysis.get('ocr_text', ''))
+        tags              = str(analysis.get('tags', ''))
+        genres            = str(analysis.get('genres', ''))
+        deep_emotions     = str(analysis.get('deep_emotions', ''))
+        scene_context     = str(analysis.get('scene_context', ''))
+        people_description= str(analysis.get('people_description', ''))
+        environment       = str(analysis.get('environment', ''))
+        dialogue_context  = str(analysis.get('dialogue_context', ''))
+        series_movie      = str(analysis.get('series_movie', ''))
+        target_audience   = str(analysis.get('target_audience', ''))
+        scene_type        = str(analysis.get('scene_type', ''))
+        actors            = str(analysis.get('actors', ''))
+        media_type        = str(analysis.get('media_type', 'Unknown'))
+        emotion_tags      = parse_tag_array(analysis.get('emotion_tags', ''))
+        laugh_tags        = parse_tag_array(analysis.get('laugh_tags', ''))
+        contextual_tags   = parse_tag_array(analysis.get('contextual_tags', ''))
+        character_tags    = parse_tag_array(analysis.get('character_tags', ''))
+        semantic_tags     = parse_tag_array(analysis.get('semantic_tags', ''))
+
+        if not emotion_tags and not laugh_tags and not contextual_tags:
+            generated      = intelligently_generate_categorized_tags(analysis)
+            emotion_tags   = generated['emotion_tags']
+            laugh_tags     = generated['laugh_tags']
+            contextual_tags= generated['contextual_tags']
+            character_tags = generated['character_tags']
+            semantic_tags  = generated['semantic_tags']
+
+        INTRO_STYLE_KEYWORDS = {
+            'Intro-Animation': 'Animations B-roll Narrative intro animated graphics motion graphics voiceover montage',
+            'Intro-Location':  'Location-based Documentary style intro on-location establishing shots documentary b-roll real-world environment',
+            'Intro-Vlog':      'Vlog style PTC presenter-to-camera direct address action shots personal vlog intro',
+            'Intro-ColdOpen':  'Cold open intro direct-into-action hook scene no titles no introduction cold open',
+            'Intro-Narration': 'Narration Cinematic intro voiceover narration cinematic wide shots cinematic b-roll',
+            'Intro':           'YouTube intro movie intro opening sequence',
+        }
+        intro_prefix = ''
+        if category in INTRO_STYLE_KEYWORDS:
+            intro_prefix = f"[Intro Style: {INTRO_STYLE_KEYWORDS[category]}] "
+        combined_text = f"{intro_prefix}Title: {clean_title}. {description}. Emotion: {emotion}."
+        for fld, val in [('deep_emotions', deep_emotions), ('scene_context', scene_context),
+                         ('people_description', people_description), ('environment', environment),
+                         ('series_movie', series_movie), ('emotion_tags', emotion_tags),
+                         ('laugh_tags', laugh_tags), ('contextual_tags', contextual_tags),
+                         ('character_tags', character_tags), ('semantic_tags', semantic_tags),
+                         ('genres', genres)]:
+            if val:
+                combined_text += f" {fld.replace('_', ' ').title()}: {val}."
+
+        visual_embedding = create_embedding(combined_text)
+        embedding_list   = json.loads(visual_embedding.decode('utf-8'))
+
+        frame_id  = get_next_id('visual_frames')
+        frame_doc = {
+            'id':                frame_id,
+            'video_id':          video_id,
+            'timestamp':         frame_data['timestamp'],
+            'visual_description':description,
+            'emotion':           emotion,
+            'ocr_text':          ocr_text,
+            'tags':              tags,
+            'genres':            genres,
+            'deep_emotions':     deep_emotions,
+            'scene_context':     scene_context,
+            'people_description':people_description,
+            'environment':       environment,
+            'dialogue_context':  dialogue_context,
+            'series_movie':      series_movie,
+            'target_audience':   target_audience,
+            'scene_type':        scene_type,
+            'actors':            actors,
+            'media_type':        media_type,
+            'emotion_tags':      emotion_tags,
+            'laugh_tags':        laugh_tags,
+            'contextual_tags':   contextual_tags,
+            'character_tags':    character_tags,
+            'semantic_tags':     semantic_tags,
+            'visual_embedding':  embedding_list
+        }
+        try:
+            frames_col.insert_one(frame_doc)
+        except Exception:
+            frame_doc.pop('visual_embedding', None)
+            frames_col.insert_one(frame_doc)
+        visual_count += 1
+
+    videos_col.update_one({'id': video_id}, {'$set': {'status': 'complete'}})
+    print(f"✅ VIDEO PROCESSING COMPLETE! {segment_count} clips, {visual_count} visual frames")
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
+@app.route('/')
+def index():
+    return send_from_directory('.', 'index_semantic.html')
+
+
+@app.route('/index_semantic.html')
+def index_semantic():
+    return send_from_directory('.', 'index_semantic.html')
+
+
+@app.route('/process_video/<int:video_id>', methods=['POST'])
+def process_video_endpoint(video_id):
+    try:
+        video = videos_col.find_one({'id': video_id})
+        if not video:
+            return jsonify({'error': 'Video not found'}), 404
+
+        filename  = video['filename']
+        video_url = video.get('video_url', '')
+
+        if video_url.startswith('http'):
+            import urllib.request
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as tmp:
+                urllib.request.urlretrieve(video_url, tmp.name)
+                tmp_path = tmp.name
+        else:
+            local_path = os.path.join(UPLOADS_FOLDER, filename)
+            if not os.path.exists(local_path):
+                return jsonify({'error': 'Video file not found locally'}), 404
+            tmp_path = local_path
+
+        try:
+            process_video(tmp_path, filename)
+            return jsonify({'success': True, 'message': 'Video processed successfully'})
+        finally:
+            if video_url.startswith('http') and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def process_video_async(tmp_path, filename, category):
+    """Background thread to process video."""
+    try:
+        print(f"🎬 [BACKGROUND] Processing video: {filename} (Category: {category})")
+        process_video(tmp_path, filename, category)
+        print(f"✅ [BACKGROUND] Completed: {filename}")
+    except Exception as e:
+        print(f"❌ [BACKGROUND] Error processing {filename}: {str(e)}")
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+            print(f"🗑️ [BACKGROUND] Cleaned up temp file: {tmp_path}")
+
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    try:
+        print(f"\n{'='*60}\n📥 UPLOAD REQUEST RECEIVED\n{'='*60}")
+
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+
+        category = request.form.get('category', 'Videos')
+        VALID_CATEGORIES = ['Videos', 'GIFs', 'PS', 'Intro',
+                            'Intro-Animation', 'Intro-Location', 'Intro-Vlog',
+                            'Intro-ColdOpen', 'Intro-Narration', 'Photo']
+        if category not in VALID_CATEGORIES:
+            category = 'Videos'
+
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+
+            try:
+                existing = videos_col.find_one({'filename': filename})
+                if existing:
+                    video_id = existing['id']
+                    print(f"🔄 Found existing video (ID: {video_id}), deleting old data...")
+                    clips_col.delete_many({'video_id': video_id})
+                    frames_col.delete_many({'video_id': video_id})
+                    videos_col.delete_one({'id': video_id})
+            except Exception as db_error:
+                print(f"⚠️ Database check error (non-fatal): {str(db_error)}")
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as tmp:
+                file.save(tmp.name)
+                tmp_path = tmp.name
+
+            file_size_mb = os.path.getsize(tmp_path) / 1024 / 1024
+            print(f"✅ Saved to temp: {tmp_path} ({file_size_mb:.1f}MB)")
+
+            thread = threading.Thread(
+                target=process_video_async,
+                args=(tmp_path, filename, category),
+                daemon=True
+            )
+            thread.start()
+            print(f"⚡ RETURNING SUCCESS IMMEDIATELY - Processing in background\n{'='*60}\n")
+
+            return jsonify({
+                'success':      True,
+                'filename':     filename,
+                'message':      f'Upload successful! AI analyzing {filename} in background...',
+                'category':     category,
+                'file_size_mb': round(file_size_mb, 2)
+            })
+        else:
+            return jsonify({'error': 'Invalid file type. Allowed: mp4, mov, avi, mkv, webm, gif'}), 400
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
+
+def _run_search(query, query_embedding, emotions_filter, genres_filter, categories_filter=None):
+    """Core search logic - fetches from MongoDB and computes similarity."""
+    results = []
+    detected_series = None
+    detected_actor  = None
+
+    if query:
+        query_lower = query.lower()
+        known_series = ['farzi', 'scam 1992', '3 idiots', 'highway', 'dil chahta hai', 'znmd', 'the office', 'breaking bad']
+        for s in known_series:
+            if s in query_lower:
+                detected_series = s
+                break
+
+        known_actors = {'shahid': ['shahid kapoor', 'shahid'], 'aamir': ['aamir khan', 'aamir'], 'alia': ['alia bhatt', 'alia']}
+        for k, v in known_actors.items():
+            if k in query_lower:
+                detected_actor = v
+                break
+
+    if not query and not emotions_filter and not genres_filter:
+        return []
+
+    # Build videos filter
+    v_filter = {}
+    if categories_filter and len(categories_filter) > 0:
+        expanded_categories = []
+        for cat in categories_filter:
+            if cat == 'Intro':
+                expanded_categories.extend(['Intro', 'Intro-Animation', 'Intro-Location', 'Intro-Vlog', 'Intro-ColdOpen', 'Intro-Narration'])
+            else:
+                expanded_categories.append(cat)
+        v_filter['category'] = {'$in': expanded_categories}
+
+    v_docs = list(videos_col.find(v_filter, {'_id': 0, 'id': 1, 'filename': 1, 'custom_tags': 1, 'category': 1, 'duration': 1}))
+    v_map  = {v['id']: v for v in v_docs}
+    v_tags = {v['id']: v.get('custom_tags') or '' for v in v_docs}
+
+    allowed_video_ids = set(v_map.keys()) if categories_filter else None
+
+    if not query and (emotions_filter or genres_filter):
+        vf_docs = list(frames_col.find({}, {
+            '_id': 0, 'id': 1, 'video_id': 1, 'timestamp': 1, 'visual_description': 1,
+            'emotion': 1, 'ocr_text': 1, 'tags': 1, 'genres': 1, 'deep_emotions': 1,
+            'scene_context': 1, 'people_description': 1, 'environment': 1, 'series_movie': 1,
+            'actors': 1, 'emotion_tags': 1, 'laugh_tags': 1, 'contextual_tags': 1,
+            'character_tags': 1, 'semantic_tags': 1
+        }))
+        for vf in vf_docs:
+            vid         = vf.get('video_id')
+            custom_tags = v_tags.get(vid, '')
+            fname       = (v_map.get(vid) or {}).get('filename', '')
+            desc        = vf.get('visual_description', '')
+            emo         = vf.get('emotion') or 'neutral'
+            display     = f"[Visual - {emo.title()}] {desc}" if emo != 'neutral' else f"[Visual] {desc}"
+            if vf.get('ocr_text'):
+                display += f" | Text: \"{vf['ocr_text']}\""
+            results.append({
+                'id':              f"visual_{vf['id']}",
+                'video_id':        vid,
+                'filename':        fname,
+                'timestamp':       vf['timestamp'],
+                'start_time':      vf['timestamp'],
+                'end_time':        vf['timestamp'] + 10,
+                'duration':        10.0,
+                'text':            display,
+                'similarity':      1.0,
+                'source':          'visual',
+                'emotion':         emo,
+                'ocr_text':        vf.get('ocr_text') or '',
+                'tags':            vf.get('tags') or '',
+                'genres':          vf.get('genres') or '',
+                'custom_tags':     custom_tags,
+                'emotion_tags':    vf.get('emotion_tags') or '',
+                'laugh_tags':      vf.get('laugh_tags') or '',
+                'contextual_tags': vf.get('contextual_tags') or '',
+                'character_tags':  vf.get('character_tags') or '',
+                'semantic_tags':   vf.get('semantic_tags') or ''
+            })
+        return results
+
+    query_lower = query.lower() if query else ''
+
+    clips_docs = list(clips_col.find({}, {
+        '_id': 0, 'id': 1, 'video_id': 1, 'start_time': 1, 'end_time': 1,
+        'transcript_text': 1, 'embedding': 1
+    }).limit(500))
+
+    vf_docs = list(frames_col.find({}, {
+        '_id': 0, 'id': 1, 'video_id': 1, 'timestamp': 1, 'visual_description': 1,
+        'emotion': 1, 'ocr_text': 1, 'tags': 1, 'genres': 1, 'actors': 1, 'series_movie': 1,
+        'emotion_tags': 1, 'laugh_tags': 1, 'contextual_tags': 1, 'character_tags': 1,
+        'semantic_tags': 1, 'visual_embedding': 1
+    }).limit(500))
+
+    for clip in clips_docs:
+        if allowed_video_ids is not None and clip['video_id'] not in allowed_video_ids:
+            continue
+
+        emb = clip.get('embedding')
+        if not emb:
+            continue
+        emb_blob = json.dumps(emb).encode('utf-8')
+        sim  = cosine_similarity(query_embedding, emb_blob)
+        text = clip.get('transcript_text', '')
+        if query_lower and len(query_lower) > 3 and query_lower in text.lower():
+            sim = min(1.0, sim + 0.35)
+        if sim > 0.40:
+            if text.strip() in ['♪', '♪♪', '[Music]', '(Music)'] and 'music' not in query.lower():
+                continue
+            clip_fname     = (v_map.get(clip['video_id']) or {}).get('filename', '')
+            video_category = (v_map.get(clip['video_id']) or {}).get('category', 'Videos')
+            results.append({
+                'id':         f"audio_{clip['id']}",
+                'video_id':   clip['video_id'],
+                'filename':   clip_fname,
+                'timestamp':  clip['start_time'],
+                'start_time': clip['start_time'],
+                'end_time':   clip['end_time'],
+                'duration':   clip.get('duration', clip['end_time'] - clip['start_time']),
+                'text':       text,
+                'similarity': float(sim),
+                'source':     'audio',
+                'category':   video_category
+            })
+
+    video_best_frames = {}
+
+    for vf in vf_docs:
+        if allowed_video_ids is not None and vf['video_id'] not in allowed_video_ids:
+            continue
+
+        emb = vf.get('visual_embedding')
+        if not emb:
+            continue
+        emb_blob = json.dumps(emb).encode('utf-8')
+        sim = cosine_similarity(query_embedding, emb_blob)
+
+        custom_tags      = v_tags.get(vf['video_id'], '')
+        desc             = vf.get('visual_description', '')
+        actors           = vf.get('actors', '')
+        series_movie     = vf.get('series_movie', '')
+        ocr_text         = vf.get('ocr_text', '')
+        tags             = vf.get('tags', '')
+        emotion_tags     = vf.get('emotion_tags', '')
+        laugh_tags       = vf.get('laugh_tags', '')
+        contextual_tags  = vf.get('contextual_tags', '')
+        character_tags   = vf.get('character_tags', '')
+        semantic_tags    = vf.get('semantic_tags', '')
+
+        exact_boost = 0.0
+        if query and len(query_lower) > 2:
+            if custom_tags and query_lower in custom_tags.lower():
+                exact_boost = max(exact_boost, 0.50)
+            if actors and query_lower in actors.lower():
+                exact_boost = max(exact_boost, 0.45)
+            if series_movie and query_lower in series_movie.lower():
+                exact_boost = max(exact_boost, 0.40)
+            if desc and query_lower in desc.lower():
+                exact_boost = max(exact_boost, 0.35)
+            for tag_fld in [emotion_tags, laugh_tags, contextual_tags, character_tags, semantic_tags]:
+                if tag_fld and query_lower.replace('-', ' ').replace('_', ' ') in tag_fld.lower().replace('-', ' ').replace('_', ' '):
+                    exact_boost = max(exact_boost, 0.40)
+                    break
+            video_category = (v_map.get(vf['video_id']) or {}).get('category', '')
+            INTRO_STYLE_SEARCH_TERMS = {
+                'Intro-Animation': ['animation', 'b-roll', 'animated', 'motion graphic', 'montage', 'narrative'],
+                'Intro-Location':  ['location', 'documentary', 'establishing shot', 'on location', 'real world'],
+                'Intro-Vlog':      ['vlog', 'ptc', 'presenter', 'presenter to camera', 'direct address', 'talking to camera'],
+                'Intro-ColdOpen':  ['cold open', 'cold-open', 'hook', 'direct into action'],
+                'Intro-Narration': ['narration', 'narrate', 'cinematic', 'voiceover', 'voice over'],
+            }
+            if video_category in INTRO_STYLE_SEARCH_TERMS:
+                if any(term in query_lower for term in INTRO_STYLE_SEARCH_TERMS[video_category]):
+                    exact_boost = max(exact_boost, 0.45)
+
+        sim = min(1.0, sim + exact_boost)
+
+        video_id     = vf['video_id']
+        video_info   = v_map.get(video_id, {})
+        video_duration = video_info.get('duration', 999)
+
+        if video_duration < 30:
+            if video_id not in video_best_frames or sim > video_best_frames[video_id]['similarity']:
+                video_best_frames[video_id] = {
+                    'vf': vf, 'similarity': sim, 'custom_tags': custom_tags,
+                    'desc': desc, 'ocr_text': ocr_text, 'tags': tags,
+                    'emotion_tags': emotion_tags, 'laugh_tags': laugh_tags,
+                    'contextual_tags': contextual_tags, 'character_tags': character_tags,
+                    'semantic_tags': semantic_tags
+                }
+            continue
+
+        if detected_series and series_movie and detected_series not in (series_movie or '').lower():
+            continue
+        if detected_actor and actors:
+            if not any(v in (actors or '').lower() for v in detected_actor):
+                continue
+
+        if sim > 0.30:
+            emo    = vf.get('emotion') or 'neutral'
+            display = f"[Visual - {emo.title()}] {desc}" if emo != 'neutral' else f"[Visual] {desc}"
+            if ocr_text:
+                display += f" | Text: \"{ocr_text}\""
+            vf_fname       = (v_map.get(vf['video_id']) or {}).get('filename', '')
+            video_category = (v_map.get(vf['video_id']) or {}).get('category', 'Videos')
+            results.append({
+                'id':              f"visual_{vf['id']}",
+                'video_id':        vf['video_id'],
+                'filename':        vf_fname,
+                'timestamp':       vf['timestamp'],
+                'start_time':      vf['timestamp'],
+                'end_time':        vf['timestamp'] + 10,
+                'duration':        10.0,
+                'text':            display,
+                'similarity':      float(sim),
+                'source':          'visual',
+                'emotion':         emo,
+                'ocr_text':        ocr_text or '',
+                'tags':            tags or '',
+                'genres':          vf.get('genres') or '',
+                'custom_tags':     custom_tags or '',
+                'emotion_tags':    emotion_tags or '',
+                'laugh_tags':      laugh_tags or '',
+                'contextual_tags': contextual_tags or '',
+                'character_tags':  character_tags or '',
+                'semantic_tags':   semantic_tags or '',
+                'category':        video_category
+            })
+
+    for video_id, best in video_best_frames.items():
+        vf  = best['vf']
+        sim = best['similarity']
+
+        if detected_series and vf.get('series_movie') and detected_series not in (vf.get('series_movie') or '').lower():
+            continue
+        if detected_actor and vf.get('actors'):
+            if not any(v in (vf.get('actors') or '').lower() for v in detected_actor):
+                continue
+
+        if sim > 0.30:
+            emo      = vf.get('emotion') or 'neutral'
+            desc     = best['desc']
+            ocr_text = best['ocr_text']
+            display  = f"[Visual - {emo.title()}] {desc}" if emo != 'neutral' else f"[Visual] {desc}"
+            if ocr_text:
+                display += f" | Text: \"{ocr_text}\""
+            vf_fname       = (v_map.get(vf['video_id']) or {}).get('filename', '')
+            video_category = (v_map.get(vf['video_id']) or {}).get('category', 'Videos')
+            results.append({
+                'id':              f"visual_{vf['id']}",
+                'video_id':        vf['video_id'],
+                'filename':        vf_fname,
+                'timestamp':       vf['timestamp'],
+                'start_time':      vf['timestamp'],
+                'end_time':        vf['timestamp'] + 10,
+                'duration':        10.0,
+                'text':            display,
+                'similarity':      float(sim),
+                'source':          'visual',
+                'emotion':         emo,
+                'ocr_text':        ocr_text or '',
+                'tags':            best['tags'] or '',
+                'genres':          vf.get('genres') or '',
+                'custom_tags':     best['custom_tags'] or '',
+                'emotion_tags':    best['emotion_tags'] or '',
+                'laugh_tags':      best['laugh_tags'] or '',
+                'contextual_tags': best['contextual_tags'] or '',
+                'character_tags':  best['character_tags'] or '',
+                'semantic_tags':   best['semantic_tags'] or '',
+                'category':        video_category
+            })
+
+    if emotions_filter or genres_filter:
+        filtered = []
+        for r in results:
+            em_match = not emotions_filter or (r.get('emotion', 'neutral').lower() in [e.lower() for e in emotions_filter])
+            genre_match = True
+            if genres_filter and r.get('source') == 'visual':
+                rg = (r.get('genres') or '').lower().split(', ')
+                genre_match = any(g.lower() in rg for g in genres_filter)
+            elif genres_filter and r.get('source') == 'audio':
+                genre_match = False
+            if em_match and genre_match:
+                filtered.append(r)
+        results = filtered
+
+    results.sort(key=lambda x: x['similarity'], reverse=True)
+    return results
+
+
+@app.route('/search', methods=['POST'])
+def search():
+    data             = request.json
+    query            = data.get('query', '').strip()
+    emotions_filter  = data.get('emotions', [])
+    genres_filter    = data.get('genres', [])
+    categories_filter= data.get('categories', [])
+
+    if not query and not emotions_filter and not genres_filter:
+        return jsonify({'results': []})
+
+    try:
+        query_embedding = None
+        if query:
+            query_embedding = create_embedding(query)
+
+        results = _run_search(query, query_embedding, emotions_filter, genres_filter, categories_filter)
+
+        if not results and query:
+            return jsonify({
+                'results': [],
+                'message': f'No relevant B-rolls found for "{query}". Try different keywords or upload more videos.'
+            })
+
+        return jsonify({'results': results[:50]})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/uploads/<path:filename>')
+def serve_video(filename):
+    """Serve video file from local uploads folder (fall back to redirect for old http URLs)."""
+    video = videos_col.find_one({'filename': filename}, {'video_url': 1})
+    if video:
+        url = video.get('video_url', '')
+        if url.startswith('http'):
+            return redirect(url)
+    local_path = os.path.join(UPLOADS_FOLDER, filename)
+    if os.path.exists(local_path):
+        return send_from_directory(UPLOADS_FOLDER, filename)
+    return jsonify({'error': 'File not found'}), 404
+
+
+@app.route('/thumbnails/<path:filename>')
+def serve_thumbnail(filename):
+    """Serve thumbnail from local thumbnails folder."""
+    if filename.startswith('http'):
+        return redirect(filename)
+    local_path = os.path.join(THUMBNAILS_FOLDER, filename)
+    if os.path.exists(local_path):
+        return send_from_directory(THUMBNAILS_FOLDER, filename)
+    return jsonify({'error': 'Thumbnail not found'}), 404
+
+
+@app.route('/videos', methods=['GET'])
+def list_videos():
+    try:
+        v_docs = list(videos_col.find({}, {'_id': 0}).sort('upload_date', DESCENDING))
+
+        clip_pipeline = [
+            {'$group': {'_id': '$video_id', 'count': {'$sum': 1}}}
+        ]
+        clip_counts = {doc['_id']: doc['count'] for doc in clips_col.aggregate(clip_pipeline)}
+
+        videos = []
+        for v in v_docs:
+            upload_date = v.get('upload_date')
+            if isinstance(upload_date, datetime):
+                upload_date = upload_date.isoformat()
+            videos.append({
+                'id':            v['id'],
+                'filename':      v['filename'],
+                'title':         v.get('title') or v['filename'],
+                'upload_date':   upload_date,
+                'duration':      v.get('duration') or 0,
+                'status':        v.get('status', 'pending'),
+                'thumbnail':     v.get('thumbnail'),
+                'custom_tags':   v.get('custom_tags') or '',
+                'clip_count':    clip_counts.get(v['id'], 0),
+                'video_url':     v.get('video_url'),
+                'category':      v.get('category', 'Videos')
+            })
+
+        response = jsonify({'videos': videos})
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma']        = 'no-cache'
+        response.headers['Expires']       = '0'
+        return response
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/video-analysis/<int:video_id>', methods=['GET'])
+def get_video_analysis(video_id):
+    try:
+        frames = list(frames_col.find(
+            {'video_id': video_id},
+            {'_id': 0, 'timestamp': 1, 'visual_description': 1, 'emotion': 1, 'ocr_text': 1}
+        ).sort('timestamp', ASCENDING))
+
+        return jsonify({'frames': frames, 'count': len(frames)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/reprocess/<int:video_id>', methods=['POST'])
+def reprocess_video(video_id):
+    try:
+        video = videos_col.find_one({'id': video_id})
+        if not video:
+            return jsonify({'error': 'Video not found'}), 404
+
+        filename       = video['filename']
+        video_duration = video['duration']
+        video_url      = video.get('video_url', '')
+        category       = video.get('category', 'Videos')
+
+        frames_col.delete_many({'video_id': video_id})
+
+        tmp_path = None
+        if video_url.startswith('http'):
+            import urllib.request
+            tmp_path = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]).name
+            try:
+                urllib.request.urlretrieve(video_url, tmp_path)
+            except Exception as e:
+                return jsonify({'error': f'Failed to download video: {e}'}), 500
+        else:
+            local_path = os.path.join(UPLOADS_FOLDER, filename)
+            if not os.path.exists(local_path):
+                return jsonify({'error': 'Video file not found locally'}), 404
+            tmp_path = local_path
+
+        frames = extract_frames_for_analysis(tmp_path, video_duration, filename)
+        if not frames:
+            if video_url.startswith('http') and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            return jsonify({'error': 'Failed to extract frames'}), 500
+
+        full_transcript = ' '.join(
+            r['transcript_text'] or ''
+            for r in clips_col.find({'video_id': video_id}, {'transcript_text': 1}).sort('start_time', ASCENDING)
+        )
+
+        INTRO_STYLE_KEYWORDS = {
+            'Intro-Animation': 'Animations B-roll Narrative intro animated graphics motion graphics voiceover montage',
+            'Intro-Location':  'Location-based Documentary style intro on-location establishing shots documentary b-roll real-world environment',
+            'Intro-Vlog':      'Vlog style PTC presenter-to-camera direct address action shots personal vlog intro',
+            'Intro-ColdOpen':  'Cold open intro direct-into-action hook scene no titles no introduction cold open',
+            'Intro-Narration': 'Narration Cinematic intro voiceover narration cinematic wide shots cinematic b-roll',
+            'Intro':           'YouTube intro movie intro opening sequence',
+        }
+
+        visual_count = 0
+        for frame_data in frames:
+            nearby_cursor = clips_col.find(
+                {
+                    'video_id':   video_id,
+                    'start_time': {'$lte': frame_data['timestamp'] + 10},
+                    'end_time':   {'$gte': frame_data['timestamp'] - 10}
+                },
+                {'transcript_text': 1}
+            ).sort('start_time', ASCENDING).limit(3)
+            context = ' '.join(r['transcript_text'] or '' for r in nearby_cursor)
+
+            analysis = analyze_frame_with_vision(frame_data['path'], transcript_context=context,
+                                                  filename_hint=filename, category=category)
+            if not analysis:
+                continue
+
+            def parse_tag_array(tag_data):
+                if isinstance(tag_data, list):
+                    return ', '.join(str(t) for t in tag_data if t)
+                return str(tag_data) if tag_data else ''
+
+            emotion_tags    = parse_tag_array(analysis.get('emotion_tags', ''))
+            laugh_tags      = parse_tag_array(analysis.get('laugh_tags', ''))
+            contextual_tags = parse_tag_array(analysis.get('contextual_tags', ''))
+            character_tags  = parse_tag_array(analysis.get('character_tags', ''))
+            semantic_tags   = parse_tag_array(analysis.get('semantic_tags', ''))
+            if not emotion_tags and not laugh_tags and not contextual_tags:
+                gen = intelligently_generate_categorized_tags(analysis)
+                emotion_tags, laugh_tags, contextual_tags = gen['emotion_tags'], gen['laugh_tags'], gen['contextual_tags']
+                character_tags, semantic_tags = gen['character_tags'], gen['semantic_tags']
+
+            desc        = str(analysis.get('description', ''))
+            clean_title = os.path.splitext(filename)[0].replace('-', ' ').replace('_', ' ')
+            intro_prefix = ''
+            if category in INTRO_STYLE_KEYWORDS:
+                intro_prefix = f"[Intro Style: {INTRO_STYLE_KEYWORDS[category]}] "
+            combined = f"{intro_prefix}Title: {clean_title}. {desc}. Emotion: {analysis.get('emotion', '')}."
+            for fld, val in [('deep_emotions', analysis.get('deep_emotions')),
+                             ('scene_context', analysis.get('scene_context')),
+                             ('emotion_tags', emotion_tags), ('laugh_tags', laugh_tags),
+                             ('contextual_tags', contextual_tags), ('character_tags', character_tags),
+                             ('semantic_tags', semantic_tags)]:
+                if val:
+                    combined += f" {fld}: {val}."
+            emb = json.loads(create_embedding(combined).decode('utf-8'))
+
+            frame_id  = get_next_id('visual_frames')
+            frame_doc = {
+                'id':                 frame_id,
+                'video_id':           video_id,
+                'timestamp':          frame_data['timestamp'],
+                'visual_description': desc,
+                'emotion':            str(analysis.get('emotion', '')),
+                'ocr_text':           str(analysis.get('ocr_text', '')),
+                'tags':               str(analysis.get('tags', '')),
+                'genres':             str(analysis.get('genres', '')),
+                'deep_emotions':      str(analysis.get('deep_emotions', '')),
+                'scene_context':      str(analysis.get('scene_context', '')),
+                'people_description': str(analysis.get('people_description', '')),
+                'environment':        str(analysis.get('environment', '')),
+                'dialogue_context':   str(analysis.get('dialogue_context', '')),
+                'series_movie':       str(analysis.get('series_movie', '')),
+                'target_audience':    str(analysis.get('target_audience', '')),
+                'scene_type':         str(analysis.get('scene_type', '')),
+                'actors':             str(analysis.get('actors', '')),
+                'media_type':         str(analysis.get('media_type', 'Unknown')),
+                'emotion_tags':       emotion_tags,
+                'laugh_tags':         laugh_tags,
+                'contextual_tags':    contextual_tags,
+                'character_tags':     character_tags,
+                'semantic_tags':      semantic_tags,
+                'visual_embedding':   emb
+            }
+            try:
+                frames_col.insert_one(frame_doc)
+            except Exception:
+                frame_doc.pop('visual_embedding', None)
+                frames_col.insert_one(frame_doc)
+            visual_count += 1
+
+        if video_url.startswith('http') and tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+        return jsonify({'success': True, 'visual_frames_added': visual_count})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/filters', methods=['GET'])
+def get_filters():
+    try:
+        vf_docs  = list(frames_col.find({}, {'_id': 0, 'emotion': 1, 'genres': 1}))
+        emotions = sorted(set(r['emotion'] for r in vf_docs if r.get('emotion')))
+        genres   = set()
+        for r in vf_docs:
+            for g in (r.get('genres') or '').split(', '):
+                if g.strip():
+                    genres.add(g.strip())
+        return jsonify({'emotions': emotions, 'genres': sorted(list(genres))})
+    except Exception:
+        return jsonify({'emotions': [], 'genres': []})
+
+
+@app.route('/videos/<int:video_id>/tags', methods=['POST'])
+def add_custom_tag(video_id):
+    data    = request.json
+    new_tag = data.get('tag', '').strip()
+    if not new_tag:
+        return jsonify({'error': 'Tag cannot be empty'}), 400
+
+    video = videos_col.find_one({'id': video_id}, {'custom_tags': 1})
+    if not video:
+        return jsonify({'error': 'Video not found'}), 404
+
+    current   = video.get('custom_tags') or ''
+    tags_list = [t.strip() for t in current.split(',') if t.strip()]
+    if new_tag.lower() in [t.lower() for t in tags_list]:
+        return jsonify({'error': 'Tag already exists', 'tags': ', '.join(tags_list)}), 400
+
+    tags_list.append(new_tag)
+    updated = ', '.join(tags_list)
+    videos_col.update_one({'id': video_id}, {'$set': {'custom_tags': updated}})
+    return jsonify({'success': True, 'tag': new_tag, 'all_tags': updated})
+
+
+@app.route('/videos/<int:video_id>/tags/<path:tag>', methods=['DELETE'])
+def delete_custom_tag(video_id, tag):
+    video = videos_col.find_one({'id': video_id}, {'custom_tags': 1})
+    if not video:
+        return jsonify({'error': 'Video not found'}), 404
+
+    current   = video.get('custom_tags') or ''
+    tags_list = [t.strip() for t in current.split(',') if t.strip()]
+    tags_list = [t for t in tags_list if t.lower() != tag.lower()]
+    updated   = ', '.join(tags_list)
+    videos_col.update_one({'id': video_id}, {'$set': {'custom_tags': updated}})
+    return jsonify({'success': True, 'deleted_tag': tag, 'remaining_tags': updated})
+
+
+@app.route('/delete/<int:video_id>', methods=['DELETE'])
+def delete_video(video_id):
+    try:
+        video = videos_col.find_one({'id': video_id}, {'filename': 1, 'thumbnail': 1, 'video_url': 1})
+        if not video:
+            print(f"⚠️ Video ID {video_id} not found, returning success (already deleted)")
+            return jsonify({'success': True, 'message': 'Video already deleted or does not exist'})
+
+        filename = video['filename']
+        print(f"🗑️ Deleting video ID {video_id}: {filename}")
+
+        clips_col.delete_many({'video_id': video_id})
+        frames_col.delete_many({'video_id': video_id})
+        videos_col.delete_one({'id': video_id})
+
+        video_path = os.path.join(UPLOADS_FOLDER, filename)
+        if os.path.exists(video_path):
+            try:
+                os.remove(video_path)
+            except Exception as e:
+                print(f"⚠️ Could not delete video file: {e}")
+
+        thumb_name = f"thumb_{os.path.splitext(filename)[0]}.jpg"
+        thumb_path = os.path.join(THUMBNAILS_FOLDER, thumb_name)
+        if os.path.exists(thumb_path):
+            try:
+                os.remove(thumb_path)
+            except Exception as e:
+                print(f"⚠️ Could not delete thumbnail: {e}")
+
+        return jsonify({'success': True, 'message': f'Deleted {filename}'})
+    except Exception as e:
+        print(f"❌ Delete error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+if __name__ == '__main__':
+    print("\n" + "="*60)
+    print("🚀 B-ROLL MAPPER - MONGODB VERSION")
+    print("="*60)
+    print("✅ MongoDB Atlas + Local File Storage")
+    print("✅ OpenAI Whisper, Vision, Embeddings")
+    print("✅ Server: http://localhost:5002")
+    print("="*60 + "\n")
+    app.run(debug=False, port=5002)
