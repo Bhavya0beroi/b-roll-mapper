@@ -1,8 +1,3 @@
-# gevent monkey-patch MUST be first — before any other import.
-# Without this, pymongo's connection pool deadlocks under gevent workers.
-from gevent import monkey
-monkey.patch_all()
-
 """
 B-Roll Mapper - MongoDB Version
 Migrated from Supabase to MongoDB. Video files stored locally in uploads/ folder.
