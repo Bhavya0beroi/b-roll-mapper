@@ -83,7 +83,7 @@ _STORAGE_BASE     = os.getenv('STORAGE_BASE', '.')
 UPLOADS_FOLDER    = os.path.join(_STORAGE_BASE, 'uploads')
 THUMBNAILS_FOLDER = os.path.join(_STORAGE_BASE, 'thumbnails')
 FRAMES_FOLDER     = os.path.join(_STORAGE_BASE, 'frames')
-ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv', 'webm', 'gif', 'jpg', 'jpeg', 'png'}
+ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv', 'webm', 'gif', 'jpg', 'jpeg', 'png', 'heic'}
 CHUNK_DURATION = 15
 FRAME_INTERVAL = 10
 
@@ -597,7 +597,24 @@ def process_video(video_path, filename, category='Videos'):
     """Process video/image: save locally, transcribe (videos only), visual analysis."""
     print(f"\n{'='*60}\n🎬 PROCESSING: {filename} (Category: {category})\n{'='*60}")
 
-    is_image = filename.lower().endswith(('.jpg', '.jpeg', '.png'))
+    is_heic = filename.lower().endswith('.heic')
+    is_image = filename.lower().endswith(('.jpg', '.jpeg', '.png', '.heic'))
+
+    # Convert HEIC → JPEG before any processing (OpenAI Vision doesn't accept HEIC)
+    if is_heic:
+        try:
+            import pillow_heif
+            pillow_heif.register_heif_opener()
+            from PIL import Image as PILImage
+            jpg_filename = os.path.splitext(filename)[0] + '.jpg'
+            jpg_path = os.path.join(os.path.dirname(video_path), jpg_filename)
+            img = PILImage.open(video_path)
+            img.save(jpg_path, 'JPEG', quality=92)
+            video_path = jpg_path
+            filename = jpg_filename
+            print(f"🔄 Converted HEIC → JPEG: {filename}")
+        except Exception as e:
+            print(f"⚠️  HEIC conversion failed, trying as-is: {e}")
 
     if is_image:
         video_duration = 0
