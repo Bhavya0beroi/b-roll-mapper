@@ -76,9 +76,13 @@ CORS(app,
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
-UPLOADS_FOLDER    = 'uploads'
-THUMBNAILS_FOLDER = 'thumbnails'
-FRAMES_FOLDER     = 'frames'
+# STORAGE_BASE lets you point all file storage at a Railway Volume mount path.
+# Set STORAGE_BASE=/data in Railway env vars (matching your Volume mount point).
+# Defaults to current directory for local development.
+_STORAGE_BASE     = os.getenv('STORAGE_BASE', '.')
+UPLOADS_FOLDER    = os.path.join(_STORAGE_BASE, 'uploads')
+THUMBNAILS_FOLDER = os.path.join(_STORAGE_BASE, 'thumbnails')
+FRAMES_FOLDER     = os.path.join(_STORAGE_BASE, 'frames')
 ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv', 'webm', 'gif', 'jpg', 'jpeg', 'png'}
 CHUNK_DURATION = 15
 FRAME_INTERVAL = 10
