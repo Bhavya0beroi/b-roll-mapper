@@ -909,20 +909,41 @@ def upload_file():
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
 
-            try:
-                existing = videos_col.find_one({'filename': filename})
-                if existing:
-                    video_id = existing['id']
-                    print(f"🔄 Found existing video (ID: {video_id}), deleting old data...")
-                    clips_col.delete_many({'video_id': video_id})
-                    frames_col.delete_many({'video_id': video_id})
-                    videos_col.delete_one({'id': video_id})
-            except Exception as db_error:
-                print(f"⚠️ Database check error (non-fatal): {str(db_error)}")
-
             with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as tmp:
                 file.save(tmp.name)
                 tmp_path = tmp.name
+
+            # If this file already exists in MongoDB with complete analysis,
+            # just restore the file to disk and keep all existing AI data.
+            try:
+                existing = videos_col.find_one({'filename': filename, 'status': 'complete'})
+                if existing and clips_col.count_documents({'video_id': existing['id']}) > 0:
+                    video_id = existing['id']
+                    print(f"♻️  Restoring file for existing video (ID: {video_id}) — keeping all AI data")
+                    dest = os.path.join(UPLOADS_FOLDER, filename)
+                    shutil.copy2(tmp_path, dest)
+                    os.remove(tmp_path)
+                    # Regenerate thumbnail
+                    is_img = filename.lower().endswith(('.jpg', '.jpeg', '.png', '.heic'))
+                    if not is_img:
+                        thumb_name = f"thumb_{os.path.splitext(filename)[0]}.jpg"
+                        thumb_path = os.path.join(THUMBNAILS_FOLDER, thumb_name)
+                        generate_thumbnail(dest, thumb_path, 1.0)
+                    videos_col.update_one(
+                        {'id': video_id},
+                        {'$set': {'video_url': f'/uploads/{filename}'}}
+                    )
+                    file_size_mb = os.path.getsize(dest) / 1024 / 1024
+                    return jsonify({
+                        'success': True,
+                        'filename': filename,
+                        'message': f'File restored for "{filename}" — all existing analysis kept.',
+                        'category': existing.get('category', 'Videos'),
+                        'file_size_mb': round(file_size_mb, 2),
+                        'restored': True
+                    })
+            except Exception as db_error:
+                print(f"⚠️ Restore check error (non-fatal): {str(db_error)}")
 
             file_size_mb = os.path.getsize(tmp_path) / 1024 / 1024
             print(f"✅ Saved to temp: {tmp_path} ({file_size_mb:.1f}MB)")
