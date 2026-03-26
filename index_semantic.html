@@ -479,6 +479,13 @@
         const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? 'http://localhost:5002'
             : window.location.origin;
+
+        function thumbError(img) {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'w-full h-32 bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center thumb-placeholder';
+            placeholder.innerHTML = '<svg class="h-16 w-16 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/></svg>';
+            img.parentNode.replaceChild(placeholder, img);
+        }
         
         const uploadZone = document.getElementById('uploadZone');
         const fileInput = document.getElementById('fileInput');
@@ -723,17 +730,14 @@
                               video.status === 'processing' ? 'text-yellow-500 pulse-animation' : 'text-red-500';
             
             const thumbnailUrl = video.thumbnail ? `${API_BASE}/thumbnails/${video.thumbnail}` : '';
-            const thumbPlaceholder = `<div class="w-full h-32 bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
-                                    <svg class="h-16 w-16 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/>
-                                    </svg>
-                                </div>`;
             
             card.innerHTML = `
                         <div class="relative group">
                             ${video.thumbnail ? `
-                                <img src="${thumbnailUrl}" alt="${video.filename}" class="w-full h-32 object-cover" onerror="this.outerHTML='${thumbPlaceholder.replace(/`/g, '\\`').replace(/'/g, "\\'")}'" >
-                            ` : thumbPlaceholder}
+                                <img src="${thumbnailUrl}" alt="" class="w-full h-32 object-cover thumb-img" onerror="thumbError(this)">
+                            ` : `<div class="w-full h-32 bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center thumb-placeholder">
+                                    <svg class="h-16 w-16 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/></svg>
+                                </div>`}
                             <div class="absolute top-2 right-2 ${statusColor} text-lg bg-black bg-opacity-70 rounded-full p-1">${statusIcon}</div>
                             <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all flex items-center justify-center">
                                 <svg class="h-16 w-16 text-white opacity-0 group-hover:opacity-80 transition-opacity" fill="currentColor" viewBox="0 0 20 20">
