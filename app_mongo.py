@@ -1556,6 +1556,28 @@ def delete_custom_tag(video_id, tag):
     return jsonify({'success': True, 'deleted_tag': tag, 'remaining_tags': updated})
 
 
+@app.route('/delete-all', methods=['DELETE'])
+def delete_all_videos():
+    try:
+        all_videos = list(videos_col.find({}, {'filename': 1, 'thumbnail': 1}))
+        deleted_files = 0
+        for video in all_videos:
+            for folder, field in [(UPLOADS_FOLDER, 'filename'), (THUMBNAILS_FOLDER, 'thumbnail')]:
+                fname = video.get(field)
+                if fname:
+                    path = os.path.join(folder, fname)
+                    if os.path.exists(path):
+                        os.remove(path)
+                        deleted_files += 1
+        videos_col.delete_many({})
+        clips_col.delete_many({})
+        frames_col.delete_many({})
+        counters_col.delete_many({})
+        return jsonify({'success': True, 'deleted_videos': len(all_videos), 'deleted_files': deleted_files})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/delete/<int:video_id>', methods=['DELETE'])
 def delete_video(video_id):
     try:
