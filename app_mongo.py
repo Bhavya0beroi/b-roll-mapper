@@ -630,32 +630,34 @@ def process_video(video_path, filename, category='Videos'):
         thumbnail_path = os.path.join(THUMBNAILS_FOLDER, thumbnail_filename)
         generate_thumbnail(video_path, thumbnail_path, thumbnail_time)
 
+    clean_title = os.path.splitext(filename)[0].replace('-', ' ').replace('_', ' ')
+    if clean_title.startswith("Copy of "):
+        clean_title = clean_title[8:]
+
+    # Insert DB record immediately so it always appears in the library,
+    # even if subsequent AI processing fails.
+    video_id = get_next_id('videos')
+    video_doc = {
+        'id':          video_id,
+        'filename':    filename,
+        'title':       clean_title,
+        'upload_date': datetime.now(timezone.utc),
+        'duration':    video_duration,
+        'status':      'processing',
+        'thumbnail':   thumbnail_filename,
+        'custom_tags': '',
+        'video_url':   f'/uploads/{filename}',
+        'category':    category
+    }
+    videos_col.insert_one(video_doc)
+    print(f"✅ Video record created (ID: {video_id})")
+
     print("💾 Saving video to local storage...")
     video_url = save_video_locally(video_path, filename)
     print(f"✅ Video saved: {video_url}")
 
     if os.path.exists(thumbnail_path):
         save_thumbnail_locally(thumbnail_path, thumbnail_filename)
-
-    clean_title = os.path.splitext(filename)[0].replace('-', ' ').replace('_', ' ')
-    if clean_title.startswith("Copy of "):
-        clean_title = clean_title[8:]
-
-    video_id = get_next_id('videos')
-    video_doc = {
-        'id':              video_id,
-        'filename':        filename,
-        'title':           clean_title,
-        'upload_date':     datetime.now(timezone.utc),
-        'duration':        video_duration,
-        'status':          'processing',
-        'thumbnail':       thumbnail_filename,
-        'custom_tags':     '',
-        'video_url':       video_url,
-        'category':        category
-    }
-    videos_col.insert_one(video_doc)
-    print(f"✅ Video record created (ID: {video_id})")
 
     audio_path = None if is_image else extract_audio(video_path)
     segment_count = 0
@@ -876,11 +878,21 @@ def process_video_endpoint(video_id):
 def process_video_async(tmp_path, filename, category):
     """Background thread to process video."""
     try:
-        print(f"🎬 [BACKGROUND] Processing video: {filename} (Category: {category})")
+        print(f"🎬 [BACKGROUND] Processing: {filename} (Category: {category})")
         process_video(tmp_path, filename, category)
         print(f"✅ [BACKGROUND] Completed: {filename}")
     except Exception as e:
+        import traceback
         print(f"❌ [BACKGROUND] Error processing {filename}: {str(e)}")
+        print(traceback.format_exc())
+        # Mark the record as failed if it was already inserted
+        try:
+            videos_col.update_one(
+                {'filename': filename, 'status': 'processing'},
+                {'$set': {'status': 'failed', 'error': str(e)}}
+            )
+        except Exception:
+            pass
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
