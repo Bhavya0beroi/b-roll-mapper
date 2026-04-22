@@ -577,7 +577,15 @@ def save_video_locally(src_path, filename):
     """Copy video to uploads folder and return its serving URL."""
     dest = os.path.join(UPLOADS_FOLDER, filename)
     if os.path.abspath(src_path) != os.path.abspath(dest):
-        shutil.copy2(src_path, dest)
+        try:
+            shutil.copy2(src_path, dest)
+        except OSError as e:
+            if e.errno == 28:
+                raise RuntimeError(
+                    f"Storage volume is full ({_STORAGE_BASE}). "
+                    "Please increase the Railway Volume size or delete unused videos."
+                ) from e
+            raise
     return f"/uploads/{filename}"
 
 
