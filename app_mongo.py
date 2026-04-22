@@ -1568,6 +1568,40 @@ def delete_custom_tag(video_id, tag):
     return jsonify({'success': True, 'deleted_tag': tag, 'remaining_tags': updated})
 
 
+@app.route('/storage-check', methods=['GET'])
+def storage_check():
+    """Diagnostic: check storage paths, write access, and disk usage."""
+    import shutil as sh
+    info = {
+        'STORAGE_BASE': _STORAGE_BASE,
+        'UPLOADS_FOLDER': UPLOADS_FOLDER,
+        'THUMBNAILS_FOLDER': THUMBNAILS_FOLDER,
+    }
+    for folder in [UPLOADS_FOLDER, THUMBNAILS_FOLDER, FRAMES_FOLDER]:
+        exists = os.path.exists(folder)
+        writable = os.access(folder, os.W_OK) if exists else False
+        try:
+            files = os.listdir(folder) if exists else []
+        except Exception:
+            files = []
+        info[folder] = {'exists': exists, 'writable': writable, 'file_count': len(files), 'sample': files[:3]}
+    try:
+        total, used, free = sh.disk_usage(_STORAGE_BASE if os.path.exists(_STORAGE_BASE) else '/')
+        info['disk'] = {'total_gb': round(total/1e9,2), 'used_gb': round(used/1e9,2), 'free_gb': round(free/1e9,2)}
+    except Exception as e:
+        info['disk_error'] = str(e)
+    # Test write
+    test_path = os.path.join(UPLOADS_FOLDER, '_write_test.tmp')
+    try:
+        with open(test_path, 'w') as f:
+            f.write('test')
+        os.remove(test_path)
+        info['write_test'] = 'PASS'
+    except Exception as e:
+        info['write_test'] = f'FAIL: {e}'
+    return jsonify(info)
+
+
 @app.route('/debug-reprocess/<int:video_id>', methods=['POST'])
 def debug_reprocess(video_id):
     """Synchronously reprocess a failed video/image and return detailed error info."""
