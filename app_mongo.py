@@ -1568,6 +1568,32 @@ def delete_custom_tag(video_id, tag):
     return jsonify({'success': True, 'deleted_tag': tag, 'remaining_tags': updated})
 
 
+@app.route('/debug-reprocess/<int:video_id>', methods=['POST'])
+def debug_reprocess(video_id):
+    """Synchronously reprocess a failed video/image and return detailed error info."""
+    import traceback as tb
+    try:
+        video = videos_col.find_one({'id': video_id})
+        if not video:
+            return jsonify({'error': 'Video not found'}), 404
+        filename = video['filename']
+        category = video.get('category', 'Videos')
+        local_path = os.path.join(UPLOADS_FOLDER, filename)
+        if not os.path.exists(local_path):
+            return jsonify({'error': f'File not found on disk: {local_path}', 'uploads_folder': UPLOADS_FOLDER}), 404
+        # Delete old processing data
+        frames_col.delete_many({'video_id': video_id})
+        clips_col.delete_many({'video_id': video_id})
+        videos_col.update_one({'id': video_id}, {'$set': {'status': 'processing', 'error': None}})
+        try:
+            process_video(local_path, filename, category)
+            return jsonify({'success': True, 'message': f'Processed {filename}'})
+        except Exception as e:
+            return jsonify({'error': str(e), 'traceback': tb.format_exc()})
+    except Exception as e:
+        return jsonify({'error': str(e), 'traceback': tb.format_exc()}), 500
+
+
 @app.route('/delete-all', methods=['DELETE'])
 def delete_all_videos():
     try:
